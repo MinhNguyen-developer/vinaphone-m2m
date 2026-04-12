@@ -6,7 +6,7 @@ export const SimStatus = {
 } as const;
 export type SimStatus = (typeof SimStatus)[keyof typeof SimStatus];
 
-// ===== INTERFACES =====
+// ===== CORE INTERFACES =====
 
 export interface ProductGroup {
   id: string;
@@ -44,8 +44,10 @@ export interface SimCard {
   firstUsedAt?: string;     // Thời điểm phát sinh dung lượng đầu tiên (editable)
   confirmedAt?: string;
   createdAt: string;
-  usageHistory: UsageHistory[];
-  alerts: AlertConfig[];
+  /** Only present when fetched individually via /sims/:phone/usage-history */
+  usageHistory?: UsageHistory[];
+  /** Only present when fetched individually – use /alerts for the full list */
+  alerts?: AlertConfig[];
   note?: string;
 }
 
@@ -59,6 +61,66 @@ export interface MasterSim {
   description?: string;
 }
 
+// ===== API REQUEST / RESPONSE TYPES =====
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface SimListParams {
+  page?: number;
+  pageSize?: number;
+  productCode?: string;
+  masterSimCode?: string;
+  systemStatus?: string;
+  status?: string;
+  search?: string;
+}
+
+export interface UsageHistoryParams {
+  fromMonth?: string;
+  toMonth?: string;
+}
+
+export interface SimUsageHistoryResponse {
+  phoneNumber: string;
+  imsi?: string;
+  history: UsageHistory[];
+}
+
+export interface MasterSimWithRemaining extends MasterSim {
+  remainingMB: number;
+}
+
+export interface GroupWithCount extends ProductGroup {
+  simCount: number;
+}
+
+export interface TriggeredAlert {
+  sim: SimCard;
+  alert: AlertConfig;
+  checked: boolean;
+}
+
+export interface TriggeredAlertsResponse {
+  data: TriggeredAlert[];
+  total: number;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  expires_in: string;
+}
+
+/** @deprecated - kept for internal store types only */
 export interface SimStore {
   sims: SimCard[];
   groups: ProductGroup[];

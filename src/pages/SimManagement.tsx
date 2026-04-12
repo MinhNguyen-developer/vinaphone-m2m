@@ -6,9 +6,11 @@ import {
 import { SearchOutlined, FilterOutlined, DownloadOutlined, ExportOutlined } from '@ant-design/icons';
 import type { ColumnsType, TableRowSelection } from 'antd/es/table/interface';
 import * as XLSX from 'xlsx';
-import { useStore } from '../store/useStore';
 import { SimStatus } from '../types';
 import type { SimCard } from '../types';
+import { useSims } from '../hooks/useSims';
+import { useGroups } from '../hooks/useGroups';
+import { useAlerts, useTriggeredAlerts } from '../hooks/useAlerts';
 import { formatMB, getUsageColor } from '../utils';
 import SimStatusBadge from '../components/SIM/SimStatusBadge';
 import SimMasterMembersModal from '../components/SIM/SimMasterMembersModal';
@@ -40,7 +42,12 @@ const exportXLSX = (data: SimCard[], filename: string) => {
 };
 
 const SimManagement: React.FC = () => {
-  const { sims, groups, alerts } = useStore();
+  const { data: simsData, isLoading } = useSims({ pageSize: 200 });
+  const { data: groups = [] } = useGroups();
+  const { data: alerts = [] } = useAlerts();
+  const { data: triggeredData } = useTriggeredAlerts();
+
+  const sims = simsData?.data ?? [];
 
   const [filterProductCode, setFilterProductCode] = useState<string>('all');
   const [filterGroup, setFilterGroup] = useState<string>('all');
@@ -58,20 +65,12 @@ const SimManagement: React.FC = () => {
     return map;
   }, [sims]);
 
+  // SIM IDs currently over thresholds, sourced from the API
   const alertSimIds = useMemo(() => {
     const ids = new Set<string>();
-    sims.forEach((sim) => {
-      alerts.forEach((alert) => {
-        if (!alert.active) return;
-        const match =
-          alert.simId === sim.id ||
-          (alert.groupId && sim.groupIds.includes(alert.groupId)) ||
-          (alert.productCode && alert.productCode === sim.productCode);
-        if (match && sim.usedMB >= alert.thresholdMB) ids.add(sim.id);
-      });
-    });
+    triggeredData?.data.forEach((t) => ids.add(t.sim.id));
     return ids;
-  }, [sims, alerts]);
+  }, [triggeredData]);
 
   const filteredSims = useMemo(() => {
     let result = sims.filter((s) => {
@@ -292,7 +291,7 @@ const SimManagement: React.FC = () => {
 
       <Card>
         <Text style={{ display: 'block', marginBottom: 12 }}>
-          Hiển thị <strong>{filteredSims.length}</strong> / {sims.length} SIM
+          Hiển thị <strong>{filteredSims.length}</strong> / {simsData?.total ?? sims.length} SIM
           {selectedRowKeys.length > 0 && <Tag color="blue" style={{ marginLeft: 12 }}>Đang chọn {selectedRowKeys.length}</Tag>}
         </Text>
         <Table
@@ -304,6 +303,7 @@ const SimManagement: React.FC = () => {
           rowSelection={rowSelection}
           rowClassName={(record) => (alertSimIds.has(record.id) ? 'row-alert' : '')}
           pagination={{ pageSize: 10, showSizeChanger: true }}
+          loading={isLoading}
         />
       </Card>
 
