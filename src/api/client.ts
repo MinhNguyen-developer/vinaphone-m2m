@@ -24,11 +24,12 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Redirect to /login on 401
+// Redirect to /login on 401, but NOT when the login endpoint itself fails
 apiClient.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response?.status === 401) {
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !isLoginRequest) {
       localStorage.removeItem('vinaphone-auth');
       window.location.href = '/login';
     }
