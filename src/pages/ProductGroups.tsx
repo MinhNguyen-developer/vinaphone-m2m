@@ -19,7 +19,7 @@ const ProductGroups: React.FC = () => {
   const groupStats = useMemo(
     () =>
       groups.map((g) => {
-        const gs = sims.filter((s) => s.groupIds.includes(g.id));
+        const gs = sims.filter((s) => (s.groupIds ?? []).includes(g.id));
         return { ...g, simCount: gs.length, totalUsedMB: gs.reduce((a, s) => a + s.usedMB, 0) };
       }),
     [groups, sims]
@@ -27,7 +27,7 @@ const ProductGroups: React.FC = () => {
 
   const simsInGroup = useMemo(() => {
     if (!selectedGroup) return [];
-    let result = sims.filter((s) => s.groupIds.includes(selectedGroup));
+    let result = sims.filter((s) => (s.groupIds ?? []).includes(selectedGroup));
     if (sortUsage === 'asc') result = [...result].sort((a, b) => a.usedMB - b.usedMB);
     else if (sortUsage === 'desc') result = [...result].sort((a, b) => b.usedMB - a.usedMB);
     return result;
@@ -62,8 +62,8 @@ const ProductGroups: React.FC = () => {
     },
     {
       title: 'Thuộc nhóm', dataIndex: 'groupIds', key: 'groups',
-      render: (gids: string[]) => (
-        <>{gids.map((gid) => { const g = groups.find((x) => x.id === gid); return g ? <Tag key={gid} color="purple">{g.name}</Tag> : null; })}</>
+      render: (gids: string[] | undefined) => (
+        <>{(gids ?? []).map((gid) => { const g = groups.find((x) => x.id === gid); return g ? <Tag key={gid} color="purple">{g.name}</Tag> : null; })}</>
       ),
     },
   ];

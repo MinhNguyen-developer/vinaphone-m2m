@@ -30,7 +30,7 @@ const UsageHistory: React.FC = () => {
 
   const filteredSims = useMemo(
     () => sims.filter((s) => {
-      if (filterGroup !== 'all' && !s.groupIds.includes(filterGroup)) return false;
+      if (filterGroup !== 'all' && !(s.groupIds ?? []).includes(filterGroup)) return false;
       if (filterCode !== 'all' && s.productCode !== filterCode) return false;
       if (searchPhone && !s.phoneNumber.includes(searchPhone)) return false;
       return true;
