@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { Card, Table, Tag, Typography, Space, Badge, Select, Button } from 'antd';
 import { TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import type { SimCard } from '../types';
 import SimStatusBadge from '../components/SIM/SimStatusBadge';
 import { formatMB } from '../utils';
 import { useGroups } from '../hooks/useGroups';

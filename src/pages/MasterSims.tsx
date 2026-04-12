@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Table, Tag, Typography, Row, Col, Statistic, Progress, Drawer, Space, Badge, Spin } from 'antd';
+import { Card, Table, Tag, Typography, Row, Col, Statistic, Progress, Drawer, Space, Spin } from 'antd';
 import { CrownOutlined, MobileOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { MasterSimWithRemaining, SimCard } from '../types';
