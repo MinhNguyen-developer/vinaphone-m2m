@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Card, Table, Tag, Typography, Space, Badge, Select, Button } from 'antd';
+import { Card, Table, Tag, Typography, Space, Badge, Select, Button, Empty } from 'antd';
 import { TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import SimStatusBadge from '../components/SIM/SimStatusBadge';
@@ -10,8 +10,8 @@ import { useSims } from '../hooks/useSims';
 const { Title, Text } = Typography;
 
 const ProductGroups: React.FC = () => {
-  const { data: groups = [] } = useGroups();
-  const { data: simsData } = useSims({ pageSize: 200 });
+  const { data: groups = [], isLoading: groupsLoading } = useGroups();
+  const { data: simsData, isLoading: simsLoading } = useSims({ pageSize: 200 });
   const sims = simsData?.data ?? [];
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [sortUsage, setSortUsage] = useState<'asc' | 'desc' | 'none'>('none');
@@ -75,7 +75,15 @@ const ProductGroups: React.FC = () => {
       <Title level={3}>🗂️ Nhóm sản phẩm</Title>
 
       <Card title="Danh sách nhóm" style={{ marginBottom: 16 }}>
-        <Table dataSource={groupStats} columns={groupColumns} rowKey="id" size="middle" pagination={false} />
+        <Table
+          dataSource={groupStats}
+          columns={groupColumns}
+          rowKey="id"
+          size="middle"
+          pagination={false}
+          loading={groupsLoading || simsLoading}
+          locale={{ emptyText: <Empty description="Chưa có nhóm sản phẩm nào" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+        />
       </Card>
 
       {selectedGroup && (
@@ -92,7 +100,15 @@ const ProductGroups: React.FC = () => {
           }
           extra={<Button size="small" onClick={() => setSelectedGroup(null)}>Đóng</Button>}
         >
-          <Table dataSource={simsInGroup} columns={simColumns} rowKey="id" size="small" pagination={{ pageSize: 10 }} locale={{ emptyText: 'Nhóm chưa có SIM nào' }} />
+          <Table
+            dataSource={simsInGroup}
+            columns={simColumns}
+            rowKey="id"
+            size="small"
+            pagination={{ pageSize: 10 }}
+            loading={simsLoading}
+            locale={{ emptyText: <Empty description="Nhóm chưa có SIM nào" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+          />
         </Card>
       )}
     </div>

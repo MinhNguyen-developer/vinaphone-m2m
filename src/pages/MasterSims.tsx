@@ -93,6 +93,21 @@ const MasterSims: React.FC = () => {
         Bấm vào mã SIM chủ hoặc nút "Xem" để xem danh sách SIM thành viên.
       </Text>
 
+      {isLoading && (
+        <div style={{ textAlign: 'center', padding: '60px 0' }}>
+          <Spin size="large" tip="Đang tải SIM chủ..." />
+        </div>
+      )}
+
+      {!isLoading && masterSims.length === 0 && (
+        <Card style={{ marginBottom: 24 }}>
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <span style={{ fontSize: 48 }}>👑</span>
+            <p style={{ color: '#999', marginTop: 12 }}>Chưa có SIM chủ nào.</p>
+          </div>
+        </Card>
+      )}
+
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {masterSims.map((m) => {
           const pct = getUsagePct(m);

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Card, Col, Row, Statistic, Table, Tag, Typography, Progress, Alert, Button } from 'antd';
+import { Card, Col, Row, Statistic, Table, Tag, Typography, Progress, Alert, Button, Spin, Empty } from 'antd';
 import {
   MobileOutlined,
   CheckCircleOutlined,
@@ -17,7 +17,7 @@ const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { data: simsData } = useSims({ pageSize: 200 });
+  const { data: simsData, isLoading } = useSims({ pageSize: 200 });
   const { data: triggeredData } = useTriggeredAlerts();
 
   const sims = simsData?.data ?? [];
@@ -63,6 +63,8 @@ const Dashboard: React.FC = () => {
   return (
     <div>
       <Title level={3}>📊 Tổng quan hệ thống M2M</Title>
+
+      <Spin spinning={isLoading} tip="Đang tải dữ liệu..." size="large">
 
       {triggeredCount > 0 && (
         <Alert
@@ -194,7 +196,7 @@ const Dashboard: React.FC = () => {
               rowKey="id"
               size="small"
               pagination={false}
-              locale={{ emptyText: 'Không có SIM nào đang chờ xác nhận' }}
+              locale={{ emptyText: <Empty description="Không có SIM nào đang chờ xác nhận" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
               columns={[
                 { title: 'Số điện thoại', dataIndex: 'phoneNumber', key: 'phone' },
                 {
@@ -218,6 +220,8 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      </Spin>
     </div>
   );
 };
