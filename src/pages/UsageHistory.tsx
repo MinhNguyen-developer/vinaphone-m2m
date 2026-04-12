@@ -14,7 +14,7 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const UsageHistory: React.FC = () => {
-  const { data: simsData } = useSims({ pageSize: 200 });
+  const { data: simsData, isLoading: simsLoading } = useSims({ pageSize: 200 });
   const { data: groups = [] } = useGroups();
 
   const sims = simsData?.data ?? [];
@@ -106,7 +106,17 @@ const UsageHistory: React.FC = () => {
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={10}>
           <Card title={`📱 Chọn SIM (${filteredSims.length})`}>
-            <Table dataSource={filteredSims} columns={simTableColumns} rowKey="id" size="small" pagination={{ pageSize: 8 }} rowClassName={(r) => (r.phoneNumber === selectedPhone ? 'row-selected' : '')} onRow={(record) => ({ onClick: () => setSelectedPhone(record.phoneNumber) })} />
+            <Table
+              dataSource={filteredSims}
+              columns={simTableColumns}
+              rowKey="id"
+              size="small"
+              pagination={{ pageSize: 8 }}
+              loading={simsLoading}
+              locale={{ emptyText: <Empty description="Không có SIM nào" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+              rowClassName={(r) => (r.phoneNumber === selectedPhone ? 'row-selected' : '')}
+              onRow={(record) => ({ onClick: () => setSelectedPhone(record.phoneNumber) })}
+            />
           </Card>
         </Col>
 
