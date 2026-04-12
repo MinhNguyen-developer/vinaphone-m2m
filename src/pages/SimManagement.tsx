@@ -75,7 +75,7 @@ const SimManagement: React.FC = () => {
   const filteredSims = useMemo(() => {
     let result = sims.filter((s) => {
       if (filterProductCode !== 'all' && s.productCode !== filterProductCode) return false;
-      if (filterGroup !== 'all' && !s.groupIds.includes(filterGroup)) return false;
+      if (filterGroup !== 'all' && !(s.groupIds ?? []).includes(filterGroup)) return false;
       if (filterStatus !== 'all' && s.status !== filterStatus) return false;
       if (searchText && !s.phoneNumber.includes(searchText) && !s.productCode.includes(searchText) && !(s.imsi ?? '').includes(searchText))
         return false;
@@ -143,15 +143,18 @@ const SimManagement: React.FC = () => {
       title: 'Nhóm',
       dataIndex: 'groupIds',
       key: 'groups',
-      render: (gids: string[]) => (
-        <>
-          {gids.map((gid) => {
-            const g = groups.find((x) => x.id === gid);
-            return g ? <Tag key={gid} color="purple">{g.name}</Tag> : null;
-          })}
-          {gids.length === 0 && <Text type="secondary">—</Text>}
-        </>
-      ),
+      render: (gids: string[] | undefined) => {
+        const ids = gids ?? [];
+        return (
+          <>
+            {ids.map((gid) => {
+              const g = groups.find((x) => x.id === gid);
+              return g ? <Tag key={gid} color="purple">{g.name}</Tag> : null;
+            })}
+            {ids.length === 0 && <Text type="secondary">—</Text>}
+          </>
+        );
+      },
     },
     {
       title: 'Trạng thái (quản lý)',
@@ -175,7 +178,7 @@ const SimManagement: React.FC = () => {
           (a) =>
             a.active &&
             (a.simId === record.id ||
-              (a.groupId && record.groupIds.includes(a.groupId)) ||
+              (a.groupId && (record.groupIds ?? []).includes(a.groupId)) ||
               (a.productCode && a.productCode === record.productCode))
         );
         const maxThreshold = relevantAlerts.length

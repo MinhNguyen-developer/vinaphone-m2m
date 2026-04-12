@@ -38,7 +38,7 @@ export interface SimCard {
   systemStatus?: string;    // Trạng thái từ hệ thống Vinaphone (# trạng thái quản lý nội bộ)
   masterSimCode?: string;   // Mã SIM chủ quản lý SIM thành viên này (vd: m2m3, m2m4)
   productCode: string;      // Mã sản phẩm: vina1200, vina1201...
-  groupIds: string[];       // Thuộc nhiều nhóm
+  groupIds: string[] | undefined;  // Thuộc nhiều nhóm (có thể trả về undefined từ API)
   status: SimStatus;
   usedMB: number;           // Dung lượng đã dùng (MB)
   firstUsedAt?: string;     // Thời điểm phát sinh dung lượng đầu tiên (editable)
