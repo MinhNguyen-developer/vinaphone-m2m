@@ -33,6 +33,10 @@ export interface AlertConfig {
 export interface SimCard {
   id: string;
   phoneNumber: string;      // Số điện thoại SIM
+  imsi?: string;            // Số IMSI (15 chữ số, định danh duy nhất trên mạng)
+  contractCode?: string;    // Mã hợp đồng với khách hàng
+  systemStatus?: string;    // Trạng thái từ hệ thống Vinaphone (# trạng thái quản lý nội bộ)
+  masterSimCode?: string;   // Mã SIM chủ quản lý SIM thành viên này (vd: m2m3, m2m4)
   productCode: string;      // Mã sản phẩm: vina1200, vina1201...
   groupIds: string[];       // Thuộc nhiều nhóm
   status: SimStatus;
@@ -47,10 +51,11 @@ export interface SimCard {
 
 export interface MasterSim {
   id: string;
-  code: string;            // m2m3, m2m4, m2m7...
+  code: string;              // m2m3, m2m4, m2m7...
   phoneNumber: string;
   packageName: string;
-  packageCapacityMB: number; // Dung lượng gói chủ (không phải dung lượng sử dụng)
+  packageCapacityMB: number; // Tổng dung lượng gói (MB)
+  usedMB: number;            // Dung lượng đã sử dụng tổng cộng bởi các SIM thành viên (MB)
   description?: string;
 }
 

@@ -1,8 +1,62 @@
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+/* ========= RESPONSIVE ========= */
+
+/* Compact tables on small screens */
+@media (max-width: 767px) {
+  .ant-table-wrapper {
+    overflow-x: auto;
+  }
+  .ant-card-body {
+    padding: 12px !important;
+  }
+  .ant-statistic-title {
+    font-size: 12px;
+  }
+  .ant-statistic-content {
+    font-size: 16px !important;
+  }
+  /* Stack filter rows vertically */
+  .ant-row .ant-col {
+    width: 100%;
+    flex: none;
+  }
+  /* Reduce page title size */
+  .ant-typography h3 {
+    font-size: 18px !important;
+  }
+  /* Full-width buttons */
+  .ant-space-wrap {
+    width: 100%;
+  }
+  .ant-space-wrap .ant-btn {
+    width: 100%;
+  }
+  /* Full-width selects */
+  .ant-select {
+    width: 100% !important;
+  }
+}
+
+/* Tablet adjustments */
+@media (max-width: 991px) and (min-width: 768px) {
+  .ant-card-body {
+    padding: 16px !important;
+  }
+}
+
+/* Ensure tables scroll horizontally instead of breaking layout */
+.ant-table-content {
+  overflow-x: auto !important;
 }

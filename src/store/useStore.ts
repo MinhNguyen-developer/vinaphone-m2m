@@ -35,6 +35,11 @@ interface State {
   addMasterSim: (sim: Omit<MasterSim, 'id'>) => void;
   updateMasterSim: (id: string, updates: Partial<MasterSim>) => void;
   deleteMasterSim: (id: string) => void;
+
+  // Alert review tracking (local UI state)
+  checkedAlertPairs: string[];  // keys: `${simId}-${alertId}`
+  toggleAlertCheck: (key: string) => void;
+  clearCheckedAlerts: () => void;
 }
 
 export const useStore = create<State>()(
@@ -44,6 +49,7 @@ export const useStore = create<State>()(
       groups: mockGroups,
       masterSims: mockMasterSims,
       alerts: mockAlerts,
+      checkedAlertPairs: [],
 
       // ========== SIM ACTIONS ==========
       addSim: (simData) =>
@@ -219,6 +225,16 @@ export const useStore = create<State>()(
         set((state) => ({
           masterSims: state.masterSims.filter((m) => m.id !== id),
         })),
+
+      // ========== ALERT REVIEW ==========
+      toggleAlertCheck: (key) =>
+        set((state) => ({
+          checkedAlertPairs: state.checkedAlertPairs.includes(key)
+            ? state.checkedAlertPairs.filter((k) => k !== key)
+            : [...state.checkedAlertPairs, key],
+        })),
+
+      clearCheckedAlerts: () => set({ checkedAlertPairs: [] }),
     }),
     {
       name: 'vinaphone-m2m-storage',

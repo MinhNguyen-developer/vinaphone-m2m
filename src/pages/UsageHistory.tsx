@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Select, Typography, Table, Tag, Space, Empty, Row, Col, Statistic } from 'antd';
+import { Card, Select, Typography, Table, Tag, Space, Empty, Row, Col, Statistic, Input } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartTooltip,
   ResponsiveContainer, Cell,
@@ -16,6 +17,7 @@ const UsageHistory: React.FC = () => {
   const [selectedSimId, setSelectedSimId] = useState<string | null>(null);
   const [filterGroup, setFilterGroup] = useState<string>('all');
   const [filterCode, setFilterCode] = useState<string>('all');
+  const [searchPhone, setSearchPhone] = useState('');
 
   const productCodes = useMemo(() => [...new Set(sims.map((s) => s.productCode))], [sims]);
 
@@ -23,9 +25,10 @@ const UsageHistory: React.FC = () => {
     () => sims.filter((s) => {
       if (filterGroup !== 'all' && !s.groupIds.includes(filterGroup)) return false;
       if (filterCode !== 'all' && s.productCode !== filterCode) return false;
+      if (searchPhone && !s.phoneNumber.includes(searchPhone)) return false;
       return true;
     }),
-    [sims, filterGroup, filterCode]
+    [sims, filterGroup, filterCode, searchPhone]
   );
 
   const selectedSim = useMemo(() => sims.find((s) => s.id === selectedSimId) ?? null, [sims, selectedSimId]);
@@ -71,6 +74,14 @@ const UsageHistory: React.FC = () => {
 
       <Card style={{ marginBottom: 16 }}>
         <Space wrap>
+          <Input
+            placeholder="Tìm theo số điện thoại"
+            prefix={<SearchOutlined />}
+            value={searchPhone}
+            onChange={(e) => setSearchPhone(e.target.value)}
+            allowClear
+            style={{ width: 200 }}
+          />
           <Select value={filterGroup} onChange={setFilterGroup} style={{ width: 200 }}>
             <Option value="all">Tất cả nhóm</Option>
             {groups.map((g) => <Option key={g.id} value={g.id}>{g.name}</Option>)}
