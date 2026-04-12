@@ -1,26 +1,61 @@
 import React, { useMemo, useState } from 'react';
 import {
   Table, Select, Tag, Space, Typography, Card, Badge, Input, Row, Col, Progress,
+  Button, Tooltip, message,
 } from 'antd';
-import { SearchOutlined, FilterOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import { useStore } from '../store/useStore';
+import { SearchOutlined, FilterOutlined, DownloadOutlined, ExportOutlined } from '@ant-design/icons';
+import type { ColumnsType, TableRowSelection } from 'antd/es/table/interface';
+import * as XLSX from 'xlsx';
 import { SimStatus } from '../types';
 import type { SimCard } from '../types';
+import { useSims } from '../hooks/useSims';
+import { useGroups } from '../hooks/useGroups';
+import { useAlerts, useTriggeredAlerts } from '../hooks/useAlerts';
 import { formatMB, getUsageColor } from '../utils';
 import SimStatusBadge from '../components/SIM/SimStatusBadge';
+import SimMasterMembersModal from '../components/SIM/SimMasterMembersModal';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+// ---- Export XLSX ----
+const exportXLSX = (data: SimCard[], filename: string) => {
+  const rows = data.map((s) => ({
+    'Số điện thoại': s.phoneNumber,
+    'IMSI': s.imsi ?? '',
+    'Mã hợp đồng': s.contractCode ?? '',
+    'Mã sản phẩm': s.productCode,
+    'Trạng thái (quản lý)': s.status,
+    'Trạng thái (hệ thống)': s.systemStatus ?? '',
+    'Dung lượng đã dùng (MB)': s.usedMB,
+    'Thời gian kích hoạt': s.firstUsedAt ?? '',
+    'Ngày tạo': s.createdAt,
+    'Ghi chú': s.note ?? '',
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // Auto column widths
+  ws['!cols'] = [18, 18, 18, 14, 20, 18, 24, 22, 12, 20].map((w) => ({ wch: w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Danh sách SIM');
+  XLSX.writeFile(wb, filename);
+  message.success(`Đã xuất ${data.length} SIM → ${filename}`);
+};
+
 const SimManagement: React.FC = () => {
-  const { sims, groups, alerts } = useStore();
+  const { data: simsData, isLoading } = useSims({ pageSize: 200 });
+  const { data: groups = [] } = useGroups();
+  const { data: alerts = [] } = useAlerts();
+  const { data: triggeredData } = useTriggeredAlerts();
+
+  const sims = simsData?.data ?? [];
 
   const [filterProductCode, setFilterProductCode] = useState<string>('all');
   const [filterGroup, setFilterGroup] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [sortUsage, setSortUsage] = useState<'asc' | 'desc' | 'none'>('none');
   const [searchText, setSearchText] = useState('');
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [modalSim, setModalSim] = useState<SimCard | null>(null);
 
   const productCodes = useMemo(() => [...new Set(sims.map((s) => s.productCode))], [sims]);
 
@@ -30,27 +65,19 @@ const SimManagement: React.FC = () => {
     return map;
   }, [sims]);
 
+  // SIM IDs currently over thresholds, sourced from the API
   const alertSimIds = useMemo(() => {
     const ids = new Set<string>();
-    sims.forEach((sim) => {
-      alerts.forEach((alert) => {
-        if (!alert.active) return;
-        const match =
-          alert.simId === sim.id ||
-          (alert.groupId && sim.groupIds.includes(alert.groupId)) ||
-          (alert.productCode && alert.productCode === sim.productCode);
-        if (match && sim.usedMB >= alert.thresholdMB) ids.add(sim.id);
-      });
-    });
+    triggeredData?.data.forEach((t) => ids.add(t.sim.id));
     return ids;
-  }, [sims, alerts]);
+  }, [triggeredData]);
 
   const filteredSims = useMemo(() => {
     let result = sims.filter((s) => {
       if (filterProductCode !== 'all' && s.productCode !== filterProductCode) return false;
       if (filterGroup !== 'all' && !s.groupIds.includes(filterGroup)) return false;
       if (filterStatus !== 'all' && s.status !== filterStatus) return false;
-      if (searchText && !s.phoneNumber.includes(searchText) && !s.productCode.includes(searchText))
+      if (searchText && !s.phoneNumber.includes(searchText) && !s.productCode.includes(searchText) && !(s.imsi ?? '').includes(searchText))
         return false;
       return true;
     });
@@ -59,17 +86,52 @@ const SimManagement: React.FC = () => {
     return result;
   }, [sims, filterProductCode, filterGroup, filterStatus, sortUsage, searchText]);
 
+  const rowSelection: TableRowSelection<SimCard> = {
+    selectedRowKeys,
+    onChange: (keys) => setSelectedRowKeys(keys),
+  };
+
+  const handleExport = (exportAll: boolean) => {
+    if (!exportAll && selectedRowKeys.length === 0) {
+      message.warning('Vui lòng tích chọn ít nhất 1 SIM!');
+      return;
+    }
+    const data = exportAll
+      ? filteredSims
+      : filteredSims.filter((s) => selectedRowKeys.includes(s.id));
+    exportXLSX(data, `sim-m2m-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const columns: ColumnsType<SimCard> = [
     {
       title: 'Số điện thoại',
       dataIndex: 'phoneNumber',
       key: 'phone',
+      fixed: 'left',
       render: (v, record) => (
         <Space>
           {alertSimIds.has(record.id) && <Badge status="error" title="Vượt ngưỡng cảnh báo" />}
-          <Text strong>{v}</Text>
+          <Text
+            strong
+            style={{ color: '#1890ff', cursor: 'pointer' }}
+            onClick={() => setModalSim(record)}
+          >
+            {v}
+          </Text>
         </Space>
       ),
+    },
+    {
+      title: 'IMSI',
+      dataIndex: 'imsi',
+      key: 'imsi',
+      render: (v) => v ? <Text code style={{ fontSize: 12 }}>{v}</Text> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: 'Mã hợp đồng',
+      dataIndex: 'contractCode',
+      key: 'contract',
+      render: (v) => v ? <Tag color="geekblue">{v}</Tag> : <Text type="secondary">—</Text>,
     },
     {
       title: 'Mã sản phẩm',
@@ -92,10 +154,16 @@ const SimManagement: React.FC = () => {
       ),
     },
     {
-      title: 'Trạng thái',
+      title: 'Trạng thái (quản lý)',
       dataIndex: 'status',
       key: 'status',
       render: (v) => <SimStatusBadge status={v} />,
+    },
+    {
+      title: 'Trạng thái (hệ thống)',
+      dataIndex: 'systemStatus',
+      key: 'sysStatus',
+      render: (v) => v ? <Tag color="cyan">{v}</Tag> : <Text type="secondary">—</Text>,
     },
     {
       title: 'Dung lượng đã dùng',
@@ -145,13 +213,32 @@ const SimManagement: React.FC = () => {
 
   return (
     <div>
-      <Title level={3}>📱 Danh sách SIM M2M</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <Title level={3} style={{ margin: 0 }}>📱 Danh sách SIM M2M</Title>
+        <Space wrap>
+          <Tooltip title="Xuất tất cả SIM trong bộ lọc hiện tại">
+            <Button icon={<DownloadOutlined />} onClick={() => handleExport(true)}>
+              Xuất danh sách ({filteredSims.length})
+            </Button>
+          </Tooltip>
+          <Tooltip title="Xuất các SIM đang được tích chọn">
+            <Button
+              type="primary"
+              icon={<ExportOutlined />}
+              onClick={() => handleExport(false)}
+              disabled={selectedRowKeys.length === 0}
+            >
+              Xuất đã chọn{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ''}
+            </Button>
+          </Tooltip>
+        </Space>
+      </div>
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[12, 12]} align="middle">
           <Col xs={24} sm={12} md={6}>
             <Input
-              placeholder="Tìm số điện thoại / mã sản phẩm"
+              placeholder="SĐT / mã sản phẩm / IMSI"
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
@@ -204,23 +291,29 @@ const SimManagement: React.FC = () => {
 
       <Card>
         <Text style={{ display: 'block', marginBottom: 12 }}>
-          Hiển thị <strong>{filteredSims.length}</strong> / {sims.length} SIM
+          Hiển thị <strong>{filteredSims.length}</strong> / {simsData?.total ?? sims.length} SIM
+          {selectedRowKeys.length > 0 && <Tag color="blue" style={{ marginLeft: 12 }}>Đang chọn {selectedRowKeys.length}</Tag>}
         </Text>
         <Table
           dataSource={filteredSims}
           columns={columns}
           rowKey="id"
           size="middle"
-          scroll={{ x: 900 }}
+          scroll={{ x: 1400 }}
+          rowSelection={rowSelection}
           rowClassName={(record) => (alertSimIds.has(record.id) ? 'row-alert' : '')}
           pagination={{ pageSize: 10, showSizeChanger: true }}
+          loading={isLoading}
         />
       </Card>
 
       <style>{`
         .row-alert td { background-color: #fff2f0 !important; }
         .row-alert:hover td { background-color: #ffe7e7 !important; }
+        .sim-member-row-self td { background-color: #e6f4ff !important; font-weight: 600; }
       `}</style>
+
+      <SimMasterMembersModal sim={modalSim} onClose={() => setModalSim(null)} />
     </div>
   );
 };
