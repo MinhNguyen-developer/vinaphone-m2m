@@ -25,6 +25,8 @@ const AlertManagement: React.FC = () => {
   const triggeredList: TriggeredAlert[] = triggeredData?.data ?? [];
 
   const productCodes = [...new Set(sims.map((s) => s.productCode))];
+
+  const alertColumns = [
     { title: 'Tên cảnh báo', dataIndex: 'label', key: 'label' },
     { title: 'Ngưỡng', dataIndex: 'thresholdMB', key: 'threshold', render: (v: number) => <Tag color="red">{formatMB(v)}</Tag> },
     {
