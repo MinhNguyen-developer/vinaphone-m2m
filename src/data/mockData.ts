@@ -9,10 +9,17 @@ export const mockGroups: ProductGroup[] = [
   { id: 'g5', name: 'Xe tải / GPS', description: 'SIM theo dõi xe tải', createdAt: '2025-03-01' },
 ];
 
+// Trạng thái hệ thống từ Vinaphone API (khác trạng thái quản lý nội bộ)
+const SYS_STATUS = ['ACTIVE', 'INACTIVE', 'PENDING', 'SUSPENDED'] as const;
+
 export const mockSims: SimCard[] = [
   {
     id: 's1',
     phoneNumber: '0901000001',
+    imsi: '452040901000001',
+    contractCode: 'HDK-2025-0001',
+    systemStatus: SYS_STATUS[0],
+    masterSimCode: 'm2m3',
     productCode: 'vina1200',
     groupIds: ['g1', 'g3'],
     status: SimStatus.CONFIRMED,
@@ -31,6 +38,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's2',
     phoneNumber: '0901000002',
+    imsi: '452040901000002',
+    contractCode: 'HDK-2025-0002',
+    systemStatus: SYS_STATUS[0],
+    masterSimCode: 'm2m3',
     productCode: 'vina1200',
     groupIds: ['g1'],
     status: SimStatus.ACTIVE,
@@ -46,6 +57,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's3',
     phoneNumber: '0901000003',
+    imsi: '452040901000003',
+    contractCode: 'HDK-2025-0003',
+    systemStatus: SYS_STATUS[0],
+    masterSimCode: 'm2m4',
     productCode: 'vina1201',
     groupIds: ['g2'],
     status: SimStatus.CONFIRMED,
@@ -63,6 +78,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's4',
     phoneNumber: '0901000004',
+    imsi: '452040901000004',
+    contractCode: 'HDK-2025-0004',
+    systemStatus: SYS_STATUS[0],
+    masterSimCode: 'm2m4',
     productCode: 'vina1201',
     groupIds: ['g4'],
     status: SimStatus.CONFIRMED,
@@ -81,6 +100,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's5',
     phoneNumber: '0901000005',
+    imsi: '452040901000005',
+    contractCode: 'HDK-2025-0005',
+    systemStatus: SYS_STATUS[0],
+    masterSimCode: 'm2m7',
     productCode: 'vina1202',
     groupIds: ['g5'],
     status: SimStatus.CONFIRMED,
@@ -96,6 +119,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's6',
     phoneNumber: '0901000006',
+    imsi: '452040901000006',
+    contractCode: 'HDK-2025-0006',
+    systemStatus: SYS_STATUS[0],
+    masterSimCode: 'm2m7',
     productCode: 'vina1202',
     groupIds: ['g5', 'g3'],
     status: SimStatus.ACTIVE,
@@ -110,6 +137,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's7',
     phoneNumber: '0901000007',
+    imsi: '452040901000007',
+    contractCode: 'HDK-2025-0007',
+    systemStatus: SYS_STATUS[2],
+    masterSimCode: 'm2m7',
     productCode: 'vina1203',
     groupIds: [],
     status: SimStatus.NEW,
@@ -121,6 +152,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's8',
     phoneNumber: '0901000008',
+    imsi: '452040901000008',
+    contractCode: 'HDK-2025-0008',
+    systemStatus: SYS_STATUS[2],
+    masterSimCode: 'm2m7',
     productCode: 'vina1203',
     groupIds: ['g2'],
     status: SimStatus.NEW,
@@ -132,6 +167,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's9',
     phoneNumber: '0901000009',
+    imsi: '452040901000009',
+    contractCode: 'HDK-2025-0009',
+    systemStatus: SYS_STATUS[0],
+    masterSimCode: 'm2m3',
     productCode: 'vina1200',
     groupIds: ['g1', 'g4'],
     status: SimStatus.CONFIRMED,
@@ -149,6 +188,10 @@ export const mockSims: SimCard[] = [
   {
     id: 's10',
     phoneNumber: '0901000010',
+    imsi: '452040901000010',
+    contractCode: 'HDK-2025-0010',
+    systemStatus: SYS_STATUS[0],
+    masterSimCode: 'm2m4',
     productCode: 'vina1201',
     groupIds: ['g3', 'g5'],
     status: SimStatus.ACTIVE,
@@ -169,6 +212,7 @@ export const mockMasterSims: MasterSim[] = [
     phoneNumber: '0901900003',
     packageName: 'Gói M2M Business 50GB',
     packageCapacityMB: 51200,
+    usedMB: 3660,   // s1(512) + s2(1100) + s9(2048)
     description: 'SIM chủ cho nhóm doanh nghiệp',
   },
   {
@@ -177,6 +221,7 @@ export const mockMasterSims: MasterSim[] = [
     phoneNumber: '0901900004',
     packageName: 'Gói M2M Enterprise 100GB',
     packageCapacityMB: 102400,
+    usedMB: 12520,  // s3(3200) + s4(5120) + s10(4200)
     description: 'SIM chủ cho thiết bị IoT lớn',
   },
   {
@@ -185,6 +230,7 @@ export const mockMasterSims: MasterSim[] = [
     phoneNumber: '0901900007',
     packageName: 'Gói M2M Basic 20GB',
     packageCapacityMB: 20480,
+    usedMB: 956,    // s5(256) + s6(700) + s7(0) + s8(0)
     description: 'SIM chủ cho khách hàng cá nhân',
   },
 ];
@@ -219,3 +265,4 @@ export const mockAlerts: AlertConfig[] = [
     active: false,
   },
 ];
+
