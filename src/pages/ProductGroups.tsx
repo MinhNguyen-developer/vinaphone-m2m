@@ -2,14 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { Card, Table, Tag, Typography, Space, Badge, Select, Button } from 'antd';
 import { TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { useStore } from '../store/useStore';
 import SimStatusBadge from '../components/SIM/SimStatusBadge';
 import { formatMB } from '../utils';
+import { useGroups } from '../hooks/useGroups';
+import { useSims } from '../hooks/useSims';
 
 const { Title, Text } = Typography;
 
 const ProductGroups: React.FC = () => {
-  const { groups, sims } = useStore();
+  const { data: groups = [] } = useGroups();
+  const { data: simsData } = useSims({ pageSize: 200 });
+  const sims = simsData?.data ?? [];
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [sortUsage, setSortUsage] = useState<'asc' | 'desc' | 'none'>('none');
 

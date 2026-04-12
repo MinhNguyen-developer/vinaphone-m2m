@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-  Modal, Card, Table, Tag, Typography, Row, Col, Statistic, Progress, Descriptions, Space,
+  Modal, Card, Table, Tag, Typography, Row, Col, Statistic, Progress, Descriptions, Space, Spin,
 } from 'antd';
 import { CrownOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { useStore } from '../../store/useStore';
-import type { SimCard } from '../../types';
+import type { MasterSimWithRemaining, SimCard } from '../../types';
 import { formatMB, getUsageColor } from '../../utils';
 import SimStatusBadge from './SimStatusBadge';
+import { useMasterSimMembers, useMasterSims } from '../../hooks/useMasterSims';
 
 const { Text } = Typography;
 
@@ -17,15 +17,14 @@ interface Props {
 }
 
 const SimMasterMembersModal: React.FC<Props> = ({ sim, onClose }) => {
-  const { sims, masterSims } = useStore();
+  const { data: masterSims = [] } = useMasterSims();
+  const { data: members = [], isLoading: membersLoading } = useMasterSimMembers(
+    sim?.masterSimCode ?? null,
+  );
 
-  const master = sim?.masterSimCode
+  const master: MasterSimWithRemaining | undefined = sim?.masterSimCode
     ? masterSims.find((m) => m.code === sim.masterSimCode)
-    : null;
-
-  const members = sim?.masterSimCode
-    ? sims.filter((s) => s.masterSimCode === sim.masterSimCode)
-    : [];
+    : undefined;
 
   const memberColumns: ColumnsType<SimCard> = [
     {
@@ -132,7 +131,7 @@ const SimMasterMembersModal: React.FC<Props> = ({ sim, onClose }) => {
                 <Col span={6}>
                   <Statistic
                     title="Còn lại"
-                    value={formatMB(master.packageCapacityMB - master.usedMB)}
+                    value={formatMB(master.remainingMB)}
                     valueStyle={{ fontSize: 14, color: '#52c41a' }}
                   />
                 </Col>
@@ -150,7 +149,9 @@ const SimMasterMembersModal: React.FC<Props> = ({ sim, onClose }) => {
           )}
 
           {/* Member SIM table */}
-          {members.length > 0 ? (
+          {membersLoading
+            ? <Spin style={{ display: 'block', margin: '40px auto' }} />
+            : members.length > 0 ? (
             <>
               <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                 Tổng cộng <strong>{members.length}</strong> SIM thành viên. Hàng xanh là SIM đang xem.

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Layout, Menu, Badge, Typography, Drawer, Button, Grid } from 'antd';
 import {
   DashboardOutlined,
@@ -8,9 +8,11 @@ import {
   CrownOutlined,
   HistoryOutlined,
   MenuOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useStore } from '../../store/useStore';
+import { useTriggeredAlerts } from '../../hooks/useAlerts';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -25,11 +27,12 @@ const AppLayout: React.FC<Props> = ({ children }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { checkAndTriggerAlerts } = useStore();
+  const { data: triggeredData } = useTriggeredAlerts();
+  const logout = useAuthStore((s) => s.logout);
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  const alertCount = useMemo(() => checkAndTriggerAlerts().length, [checkAndTriggerAlerts]);
+  const alertCount = triggeredData?.total ?? 0;
 
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: 'Tổng quan' },
@@ -159,6 +162,12 @@ const AppLayout: React.FC<Props> = ({ children }) => {
               onClick={() => navigate('/alerts')}
             />
           )}
+          <Button
+            type="text"
+            icon={<LogoutOutlined />}
+            onClick={() => { logout(); navigate('/login'); }}
+            title="Đăng xuất"
+          />
         </Header>
 
         <Content

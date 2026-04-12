@@ -7,33 +7,36 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { useStore } from '../store/useStore';
 import { SimStatus } from '../types';
 import { formatMB } from '../utils';
 import SimStatusBadge from '../components/SIM/SimStatusBadge';
+import { useSims } from '../hooks/useSims';
+import { useTriggeredAlerts } from '../hooks/useAlerts';
 
 const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { sims, checkAndTriggerAlerts } = useStore();
+  const { data: simsData } = useSims({ pageSize: 200 });
+  const { data: triggeredData } = useTriggeredAlerts();
+
+  const sims = simsData?.data ?? [];
+  const triggeredCount = triggeredData?.total ?? 0;
 
   const stats = useMemo(() => {
     const total = sims.length;
     const newSims = sims.filter((s) => s.status === SimStatus.NEW).length;
     const active = sims.filter((s) => s.status === SimStatus.ACTIVE).length;
     const confirmed = sims.filter((s) => s.status === SimStatus.CONFIRMED).length;
-    const triggered = checkAndTriggerAlerts();
     const totalUsedMB = sims.reduce((acc, s) => acc + s.usedMB, 0);
 
-    // Group by product code
     const byProductCode: Record<string, number> = {};
     sims.forEach((s) => {
       byProductCode[s.productCode] = (byProductCode[s.productCode] || 0) + 1;
     });
 
-    return { total, newSims, active, confirmed, triggered, totalUsedMB, byProductCode };
-  }, [sims, checkAndTriggerAlerts]);
+    return { total, newSims, active, confirmed, totalUsedMB, byProductCode };
+  }, [sims]);
 
   const productCodeData = useMemo(
     () =>
@@ -45,7 +48,7 @@ const Dashboard: React.FC = () => {
           .filter((s) => s.productCode === code)
           .reduce((a, s) => a + s.usedMB, 0),
       })),
-    [stats.byProductCode, sims]
+    [stats.byProductCode, sims],
   );
 
   const recentActive = useMemo(
@@ -54,19 +57,18 @@ const Dashboard: React.FC = () => {
         .filter((s) => s.status === SimStatus.ACTIVE)
         .sort((a, b) => (b.firstUsedAt ?? '').localeCompare(a.firstUsedAt ?? ''))
         .slice(0, 5),
-    [sims]
+    [sims],
   );
 
   return (
     <div>
       <Title level={3}>📊 Tổng quan hệ thống M2M</Title>
 
-      {/* Alert Banner */}
-      {stats.triggered.length > 0 && (
+      {triggeredCount > 0 && (
         <Alert
           message={
             <span>
-              ⚠️ Có <strong>{stats.triggered.length}</strong> SIM đang vượt ngưỡng cảnh báo!{' '}
+              ⚠️ Có <strong>{triggeredCount}</strong> SIM đang vượt ngưỡng cảnh báo!{' '}
               <Button type="link" onClick={() => navigate('/alerts')} style={{ padding: 0 }}>
                 Xem danh sách →
               </Button>
@@ -115,9 +117,9 @@ const Dashboard: React.FC = () => {
           <Card>
             <Statistic
               title="SIM cảnh báo vượt ngưỡng"
-              value={stats.triggered.length}
+              value={triggeredCount}
               prefix={<WarningOutlined />}
-              valueStyle={{ color: stats.triggered.length > 0 ? '#ff4d4f' : '#52c41a' }}
+              valueStyle={{ color: triggeredCount > 0 ? '#ff4d4f' : '#52c41a' }}
             />
           </Card>
         </Col>
@@ -132,11 +134,15 @@ const Dashboard: React.FC = () => {
               size="small"
               pagination={false}
               columns={[
-                { title: 'Mã sản phẩm', dataIndex: 'code', key: 'code',
-                  render: (v) => <Tag color="blue">{v}</Tag> },
+                {
+                  title: 'Mã sản phẩm', dataIndex: 'code', key: 'code',
+                  render: (v) => <Tag color="blue">{v}</Tag>,
+                },
                 { title: 'Số lượng SIM', dataIndex: 'count', key: 'count' },
-                { title: 'Tổng dung lượng đã dùng', dataIndex: 'totalUsed', key: 'totalUsed',
-                  render: (v) => formatMB(v) },
+                {
+                  title: 'Tổng dung lượng đã dùng', dataIndex: 'totalUsed', key: 'totalUsed',
+                  render: (v) => formatMB(v),
+                },
               ]}
             />
           </Card>
@@ -191,14 +197,22 @@ const Dashboard: React.FC = () => {
               locale={{ emptyText: 'Không có SIM nào đang chờ xác nhận' }}
               columns={[
                 { title: 'Số điện thoại', dataIndex: 'phoneNumber', key: 'phone' },
-                { title: 'Mã sản phẩm', dataIndex: 'productCode', key: 'code',
-                  render: (v) => <Tag color="blue">{v}</Tag> },
-                { title: 'Trạng thái', dataIndex: 'status', key: 'status',
-                  render: (v) => <SimStatusBadge status={v} /> },
-                { title: 'Dung lượng đã dùng', dataIndex: 'usedMB', key: 'used',
-                  render: (v) => formatMB(v) },
-                { title: 'Thời gian kích hoạt', dataIndex: 'firstUsedAt', key: 'firstUsed',
-                  render: (v) => v ?? '—' },
+                {
+                  title: 'Mã sản phẩm', dataIndex: 'productCode', key: 'code',
+                  render: (v) => <Tag color="blue">{v}</Tag>,
+                },
+                {
+                  title: 'Trạng thái', dataIndex: 'status', key: 'status',
+                  render: (v) => <SimStatusBadge status={v} />,
+                },
+                {
+                  title: 'Dung lượng đã dùng', dataIndex: 'usedMB', key: 'used',
+                  render: (v) => formatMB(v),
+                },
+                {
+                  title: 'Thời gian kích hoạt', dataIndex: 'firstUsedAt', key: 'firstUsed',
+                  render: (v) => v ?? '—',
+                },
               ]}
             />
           </Card>

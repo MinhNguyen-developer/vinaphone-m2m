@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
-import { Card, Table, Tag, Typography, Row, Col, Statistic, Progress, Drawer, Space, Badge } from 'antd';
+import { Card, Table, Tag, Typography, Row, Col, Statistic, Progress, Drawer, Space, Spin } from 'antd';
 import { CrownOutlined, MobileOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { useStore } from '../store/useStore';
-import type { MasterSim, SimCard } from '../types';
+import type { MasterSimWithRemaining, SimCard } from '../types';
 import { formatMB } from '../utils';
 import SimStatusBadge from '../components/SIM/SimStatusBadge';
+import { useMasterSimMembers, useMasterSims } from '../hooks/useMasterSims';
 
 const { Title, Text } = Typography;
 
 const MasterSims: React.FC = () => {
-  const { masterSims, sims } = useStore();
+  const { data: masterSims = [], isLoading } = useMasterSims();
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const { data: memberSims = [], isLoading: membersLoading } = useMasterSimMembers(selectedCode);
 
   const selectedMaster = masterSims.find((m) => m.code === selectedCode) ?? null;
-  const memberSims = sims.filter((s) => s.masterSimCode === selectedCode);
 
-  const getUsagePct = (m: MasterSim) =>
+  const getUsagePct = (m: MasterSimWithRemaining) =>
     m.packageCapacityMB > 0
       ? Math.min(Math.round((m.usedMB / m.packageCapacityMB) * 100), 100)
       : 0;
@@ -24,7 +24,7 @@ const MasterSims: React.FC = () => {
   const getPctColor = (pct: number) =>
     pct >= 90 ? '#ff4d4f' : pct >= 70 ? '#faad14' : '#52c41a';
 
-  const columns: ColumnsType<MasterSim> = [
+  const columns: ColumnsType<MasterSimWithRemaining> = [
     {
       title: 'Mã SIM chủ', dataIndex: 'code', key: 'code',
       render: (v) => (
@@ -57,27 +57,22 @@ const MasterSims: React.FC = () => {
     {
       title: 'Còn lại', key: 'remaining',
       render: (_, m) => {
-        const remaining = m.packageCapacityMB - m.usedMB;
+        const remaining = m.remainingMB;
         return <Text strong style={{ color: remaining > 0 ? '#52c41a' : '#ff4d4f' }}>{formatMB(remaining)}</Text>;
       },
     },
     {
       title: 'SIM thành viên', key: 'members',
-      render: (_, m) => {
-        const count = sims.filter((s) => s.masterSimCode === m.code).length;
-        return (
-          <Badge count={count} color="#1890ff">
-            <Tag
-              icon={<MobileOutlined />}
-              color="blue"
-              style={{ cursor: 'pointer' }}
-              onClick={() => setSelectedCode(m.code)}
-            >
-              Xem ({count})
-            </Tag>
-          </Badge>
-        );
-      },
+      render: (_, m) => (
+        <Tag
+          icon={<MobileOutlined />}
+          color="blue"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setSelectedCode(m.code)}
+        >
+          Xem
+        </Tag>
+      ),
     },
     { title: 'Mô tả', dataIndex: 'description', key: 'desc', render: (v) => v ?? <Text type="secondary">—</Text> },
   ];
@@ -101,14 +96,13 @@ const MasterSims: React.FC = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {masterSims.map((m) => {
           const pct = getUsagePct(m);
-          const remaining = m.packageCapacityMB - m.usedMB;
-          const memberCount = sims.filter((s) => s.masterSimCode === m.code).length;
+          const remaining = m.remainingMB;
           return (
             <Col xs={24} sm={12} lg={8} key={m.id}>
               <Card
                 style={{ borderLeft: `4px solid ${getPctColor(pct)}`, cursor: 'pointer' }}
                 title={<span><CrownOutlined style={{ color: '#faad14', marginRight: 8 }} />{m.code.toUpperCase()}</span>}
-                extra={<Tag color="blue" icon={<MobileOutlined />}>{memberCount} SIM</Tag>}
+                extra={<Tag color="blue" icon={<MobileOutlined />}>SIM</Tag>}
                 onClick={() => setSelectedCode(m.code)}
                 hoverable
               >
@@ -136,7 +130,7 @@ const MasterSims: React.FC = () => {
       </Row>
 
       <Card title="Danh sách SIM chủ">
-        <Table dataSource={masterSims} columns={columns} rowKey="id" size="middle" pagination={false} />
+        <Table dataSource={masterSims} columns={columns} rowKey="id" size="middle" pagination={false} loading={isLoading} />
       </Card>
 
       {/* Member SIMs Drawer */}
@@ -152,12 +146,14 @@ const MasterSims: React.FC = () => {
         extra={
           selectedMaster && (
             <Tag color="green">
-              Còn lại: {formatMB(selectedMaster.packageCapacityMB - selectedMaster.usedMB)} / {formatMB(selectedMaster.packageCapacityMB)}
+              Còn lại: {formatMB(selectedMaster.remainingMB)} / {formatMB(selectedMaster.packageCapacityMB)}
             </Tag>
           )
         }
       >
-        {memberSims.length === 0 ? (
+        {membersLoading
+          ? <Spin style={{ display: 'block', margin: '40px auto' }} />
+          : memberSims.length === 0 ? (
           <Text type="secondary">Không có SIM thành viên nào.</Text>
         ) : (
           <Table
