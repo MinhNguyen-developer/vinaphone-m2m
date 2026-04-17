@@ -1,7 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { simsApi } from '../api/sims.api';
-import type { SimListParams, UsageHistoryParams } from '../types';
-import { queryKeys } from './queryKeys';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { simsApi } from "../api/sims.api";
+import type {
+  QueryGroupMembersParams,
+  SimListParams,
+  UsageHistoryParams,
+} from "../types";
+import { queryKeys } from "./queryKeys";
 
 /**
  * Paginated SIM list with optional filters.
@@ -24,17 +28,27 @@ export const useSimUsageHistory = (
   params?: UsageHistoryParams,
 ) =>
   useQuery({
-    queryKey: queryKeys.sims.usageHistory(phoneNumber ?? '', params),
+    queryKey: queryKeys.sims.usageHistory(phoneNumber ?? "", params),
     queryFn: () => simsApi.getUsageHistory(phoneNumber!, params),
     enabled: !!phoneNumber,
     staleTime: 60_000,
   });
 
-/** PATCH /sims/:id/status */
+/** GET /sims/group-members/:groupId – thành viên nhóm SOG */
+export const useSimGroupMembers = (
+  groupId: string | null,
+  query?: QueryGroupMembersParams,
+) =>
+  useQuery({
+    queryKey: ["sims", "groupMembers", groupId, query],
+    queryFn: () => simsApi.getGroupMembers(groupId!, query),
+    enabled: !!groupId,
+    staleTime: 60_000,
+  });
 export const useUpdateSimStatus = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'confirm' | 'reset' }) =>
+    mutationFn: ({ id, action }: { id: string; action: "confirm" | "reset" }) =>
       simsApi.updateStatus(id, action),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
