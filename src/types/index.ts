@@ -1,8 +1,8 @@
 // ===== STATUS =====
 export const SimStatus = {
-  NEW: 'Mới',
-  ACTIVE: 'Đã hoạt động',
-  CONFIRMED: 'Đã xác nhận',
+  NEW: "Mới",
+  ACTIVE: "Đã hoạt động",
+  CONFIRMED: "Đã xác nhận",
 } as const;
 export type SimStatus = (typeof SimStatus)[keyof typeof SimStatus];
 
@@ -22,8 +22,8 @@ export interface UsageHistory {
 
 export interface AlertConfig {
   id: string;
-  simId?: string;       // if set on a single SIM
-  groupId?: string;     // if set on a group
+  simId?: string; // if set on a single SIM
+  groupId?: string; // if set on a group
   productCode?: string; // if set on a product code
   thresholdMB: number;
   label: string;
@@ -32,32 +32,69 @@ export interface AlertConfig {
 
 export interface SimCard {
   id: string;
-  phoneNumber: string;      // Số điện thoại SIM
-  imsi?: string;            // Số IMSI (15 chữ số, định danh duy nhất trên mạng)
-  contractCode?: string;    // Mã hợp đồng với khách hàng
-  systemStatus?: string;    // Trạng thái từ hệ thống Vinaphone (# trạng thái quản lý nội bộ)
-  masterSimCode?: string;   // Mã SIM chủ quản lý SIM thành viên này (vd: m2m3, m2m4)
-  productCode: string;      // Mã sản phẩm: vina1200, vina1201...
-  groupIds: string[] | undefined;  // Thuộc nhiều nhóm (có thể trả về undefined từ API)
+  phoneNumber: string;
+  imsi?: string;
+  iccid?: string | null;
+  contractCode?: string;
+  contractDate?: string | null;
+  activatedDate?: string | null;
+  contractInfo?: string | null;
+  systemStatus?: string;
+  connectionStatus?: string | null;
+  masterSimCode?: string;
+  productCode: string;
+  /** ratingPlanName from Vinaphone */
+  ratingPlanName?: string;
+  ratingPlanId?: number | null;
+  groupIds: string[] | undefined;
+  /** groupName from Vinaphone */
+  groupName?: string | null;
   status: SimStatus;
-  usedMB: number;           // Dung lượng đã dùng (MB)
-  firstUsedAt?: string;     // Thời điểm phát sinh dung lượng đầu tiên (editable)
+  /** Numeric status from Vinaphone: 1=Mới,2=Đang hoạt động,3=Tạm khoá,4=Huỷ */
+  vinaphoneStatus?: number;
+  usedMB: number;
+  customerName?: string;
+  customerCode?: string;
+  apnName?: string | null;
+  apnId?: number | null;
+  ip?: string | null;
+  provinceCode?: string | null;
+  imei?: string | null;
+  simType?: number;
+  serviceType?: number | null;
+  firstUsedAt?: string;
   confirmedAt?: string;
   createdAt: string;
-  /** Only present when fetched individually via /sims/:phone/usage-history */
-  usageHistory?: UsageHistory[];
-  /** Only present when fetched individually – use /alerts for the full list */
-  alerts?: AlertConfig[];
   note?: string;
+  // ── SOG (nhóm gói cước Vinaphone) ─────────────────────────────────
+  /** ID nhóm từ trường sog */
+  sogGroupId?: string | null;
+  /** Tên gói cước của nhóm */
+  sogGroupName?: string | null;
+  /** Mã gói (ma_goi) */
+  sogMaGoi?: string | null;
+  /** true = chủ nhóm, false = thành viên, null/undefined = không có sog */
+  sogIsOwner?: boolean | null;
+  usageHistory?: UsageHistory[];
+  alerts?: AlertConfig[];
+}
+
+export interface SimGroupMember {
+  id: string;
+  groupId: string;
+  msisdn: string;
+  ratingPlanName?: string | null;
+  status?: number | null;
+  syncedAt?: string | null;
 }
 
 export interface MasterSim {
   id: string;
-  code: string;              // m2m3, m2m4, m2m7...
+  code: string; // m2m3, m2m4, m2m7...
   phoneNumber: string;
   packageName: string;
   packageCapacityMB: number; // Tổng dung lượng gói (MB)
-  usedMB: number;            // Dung lượng đã sử dụng tổng cộng bởi các SIM thành viên (MB)
+  usedMB: number; // Dung lượng đã sử dụng tổng cộng bởi các SIM thành viên (MB)
   description?: string;
 }
 
@@ -73,11 +110,33 @@ export interface PaginatedResponse<T> {
 export interface SimListParams {
   page?: number;
   pageSize?: number;
+  // quickSearch fields (synced with URL)
+  msisdn?: string;
+  imsi?: string;
+  ratingPlanId?: number;
+  ratingPlanType?: string;
+  contractCode?: string;
+  contractor?: string;
+  status?: number;
+  simGroupId?: number;
+  customer?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  apnId?: number;
+  simType?: number;
+  provinceCode?: string;
+  sort?: string;
+  // legacy / local-only
   productCode?: string;
   masterSimCode?: string;
-  systemStatus?: string;
-  status?: string;
   search?: string;
+  systemStatus?: string;
+}
+
+export interface QueryGroupMembersParams {
+  page?: number;
+  pageSize?: number;
+  msisdn?: string;
 }
 
 export interface UsageHistoryParams {
@@ -126,4 +185,17 @@ export interface SimStore {
   groups: ProductGroup[];
   masterSims: MasterSim[];
   alerts: AlertConfig[];
+}
+
+export interface RatingPlanListParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
+export interface RatingPlan {
+  id: string;
+  ratingPlanId: number;
+  code: string;
+  name: string;
 }
