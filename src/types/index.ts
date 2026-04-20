@@ -199,3 +199,16 @@ export interface RatingPlan {
   code: string;
   name: string;
 }
+
+export interface GroupSimListParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
+export interface GroupSim {
+  id: string;
+  groupId: number;
+  name: string;
+  groupKey: string;
+}
