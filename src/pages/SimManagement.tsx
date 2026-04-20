@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Table,
   Select,
@@ -6,14 +6,9 @@ import {
   Space,
   Typography,
   Card,
-  Input,
-  Row,
-  Col,
   Button,
   Tooltip,
   message,
-  Checkbox,
-  Popover,
   DatePicker,
   Badge,
 } from "antd";
@@ -21,15 +16,15 @@ import {
   SearchOutlined,
   DownloadOutlined,
   ExportOutlined,
-  SettingOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import type {
   ColumnsType,
   TablePaginationConfig,
   TableRowSelection,
+  SorterResult,
 } from "antd/es/table/interface";
-import { useSearchParams } from "react-router-dom";
+
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import type { SimCard } from "../types";
@@ -40,9 +35,14 @@ import SimStatusBadge from "../components/SIM/SimStatusBadge";
 import SimMasterMembersModal from "../components/SIM/SimMasterMembersModal";
 import SimGroupMembersModal from "../components/SIM/SimGroupMembersModal";
 import { useRatingPlans } from "../hooks/useRatingPlans";
+import { useColumns } from "../hooks/useColumns";
+import { type FilterField, useFilters } from "../hooks/useFilters";
+import { useGroupSims } from "../hooks/useGroupSims";
+import { DebouncedInput } from "../components/DebouncedInput";
+import { CustomTableFilter } from "../components/CustomTableFilter";
+import { SyncPanel } from "../components/SyncPanel";
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 const { RangePicker } = DatePicker;
 
 // ─── Column keys ────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ const ALL_COLUMN_KEYS = [
   "phone",
   "imsi",
   "iccid",
+  "groupName",
   "contract",
   "contractInfo",
   "ratingPlan",
@@ -62,7 +63,7 @@ const ALL_COLUMN_KEYS = [
   "status",
   "vinStatus",
   "connection",
-  "used",
+  "usedMB",
   "activated",
   "simType",
   "apn",
@@ -76,6 +77,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   phone: "Số điện thoại",
   imsi: "IMSI",
   iccid: "ICCID",
+  groupName: "Nhóm thuê bao",
   contract: "Mã hợp đồng",
   contractInfo: "Người làm hợp đồng",
   ratingPlan: "Gói cước",
@@ -87,7 +89,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   status: "Trạng thái (QL)",
   vinStatus: "Trạng thái (VTN)",
   connection: "Kết nối",
-  used: "Dung lượng",
+  usedMB: "Dung lượng",
   activated: "Kích hoạt",
   simType: "Loại SIM",
   apn: "APN",
@@ -107,41 +109,35 @@ const DEFAULT_VISIBLE: ColumnKey[] = [
   "status",
   "vinStatus",
   "connection",
-  "used",
+  "usedMB",
   "activated",
 ];
 
 const STORAGE_KEY = "sim-column-visibility";
 
-function loadVisibleColumns(): ColumnKey[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as string[];
-      const valid = parsed.filter((k): k is ColumnKey =>
-        ALL_COLUMN_KEYS.includes(k as ColumnKey),
-      );
-      if (valid.length > 0) return valid;
-    }
-  } catch {
-    /* ignore */
-  }
-  return DEFAULT_VISIBLE;
-}
+// ─── Filter keys ──────────────────────────────────────────────────────────
 
-function saveVisibleColumns(keys: ColumnKey[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
-}
+const ALL_FILTER_KEYS = [
+  "search",
+  "msisdn",
+  "imsi",
+  "contractCode",
+  "contractor",
+  "customer",
+  "provinceCode",
+  "ratingPlanId",
+  "status",
+  "simType",
+  "dateRange",
+  "groupName",
+  "sort",
+] as const;
+type FilterKey = (typeof ALL_FILTER_KEYS)[number];
 
-// ─── URL ↔ filter helpers ─────────────────────────────────────────────────
-
-function toSearchParams(filters: Record<string, string | undefined>) {
-  const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(filters)) {
-    if (v !== undefined && v !== "" && v !== "all") p.set(k, v);
-  }
-  return p;
-}
+// Filter keys shown in the toolbox checkbox list (sort is internal, not user-visible)
+const VISIBLE_FILTER_KEYS = ALL_FILTER_KEYS.filter(
+  (k) => k !== "sort",
+) as FilterKey[];
 
 // ─── Export ───────────────────────────────────────────────────────────────
 
@@ -182,129 +178,294 @@ const VIN_STATUS_OPTIONS = [
 // ─── Component ────────────────────────────────────────────────────────────
 
 const SimManagement: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // ── Filters (synced with URL) ──────────────────────────────────────────
-  const [keySearch, setKeySearch] = useState(searchParams.get("search") ?? "");
-  const [msisdn, setMsisdn] = useState(searchParams.get("msisdn") ?? "");
-  const [imsi, setImsi] = useState(searchParams.get("imsi") ?? "");
-  const [contractCode, setContractCode] = useState(
-    searchParams.get("contractCode") ?? "",
-  );
-  const [contractor, setContractor] = useState(
-    searchParams.get("contractor") ?? "",
-  );
-  const [customer, setCustomer] = useState(searchParams.get("customer") ?? "");
-  const [status, setStatus] = useState(searchParams.get("status") ?? "all");
-  const [provinceCode, setProvinceCode] = useState(
-    searchParams.get("provinceCode") ?? "",
-  );
-  const [ratingPlanId, setRatingPlanId] = useState(
-    searchParams.get("ratingPlanId") ?? "",
-  );
-  const [simType, setSimType] = useState(searchParams.get("simType") ?? "all");
-  const [dateRange, setDateRange] = useState<
-    [dayjs.Dayjs | null, dayjs.Dayjs | null]
-  >([
-    searchParams.get("dateFrom") ? dayjs(searchParams.get("dateFrom")) : null,
-    searchParams.get("dateTo") ? dayjs(searchParams.get("dateTo")) : null,
-  ]);
-
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     pageSize: 10,
     current: 1,
     pageSizeOptions: ["10", "20", "50", "100"],
     showSizeChanger: true,
-  }); // For future pagination implementation
+  });
 
-  // ── Sync filters → URL ────────────────────────────────────────────────
-  const syncUrl = useCallback(() => {
-    setSearchParams(
-      toSearchParams({
-        search: keySearch,
-        msisdn,
-        imsi,
-        contractCode,
-        contractor,
-        customer,
-        status,
-        provinceCode,
-        ratingPlanId,
-        simType,
-        dateFrom: dateRange[0]?.format("YYYY-MM-DD"),
-        dateTo: dateRange[1]?.format("YYYY-MM-DD"),
-      }),
-      { replace: true },
-    );
-  }, [
-    keySearch,
-    msisdn,
-    imsi,
-    contractCode,
-    contractor,
-    customer,
-    status,
-    provinceCode,
-    ratingPlanId,
-    simType,
-    dateRange,
-    setSearchParams,
-  ]);
-
-  const handleTableChange = (pagination: TablePaginationConfig) => {
-    setPagination(pagination);
+  const handleTableChange = (
+    newPagination: TablePaginationConfig,
+    _filters: Record<string, unknown>,
+    sorter: SorterResult<SimCard> | SorterResult<SimCard>[],
+  ) => {
+    setPagination(newPagination);
+    // Build sort string: "field:asc" | "field:desc" | undefined
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const sortValue =
+      s.columnKey && s.order
+        ? `${String(s.columnKey)}:${s.order === "ascend" ? "asc" : "desc"}`
+        : undefined;
+    setFilterValue("sort", sortValue ?? "");
   };
 
-  // Push URL on every filter change
-  useEffect(() => {
-    syncUrl();
-  }, [syncUrl]);
+  // ── Rating plans (needed for filter dropdown options) ─────────────────
+  const { data: ratingPlansData } = useRatingPlans({ page: 1, pageSize: 1000 });
 
-  // ── Column visibility state (localStorage) ────────────────────────────
-  const [visibleCols, setVisibleCols] =
-    useState<ColumnKey[]>(loadVisibleColumns);
+  // --- Group sims (needed for filter dropdown options) ---──────────────
+  const { data: groupSimsData } = useGroupSims({ page: 1, pageSize: 10 });
 
-  const toggleColumn = (key: ColumnKey, checked: boolean) => {
-    setVisibleCols((prev) => {
-      const next = checked ? [...prev, key] : prev.filter((k) => k !== key);
-      saveVisibleColumns(next);
-      return next;
+  // ── Filter fields (render closures capture reactive data like ratingPlansData)
+  const filterFields = useMemo<FilterField<FilterKey, any>[]>(
+    () => [
+      {
+        filterKey: "search",
+        label: "Từ khóa",
+
+        colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Tìm kiếm (SĐT/IMSI/hợp đồng…)"
+            prefix={<SearchOutlined />}
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "msisdn",
+        label: "MSISDN",
+
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="MSISDN"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "imsi",
+        label: "IMSI",
+
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="IMSI"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "groupName",
+        label: "Nhóm thuê bao",
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
+        render: (value, onChange) => (
+          <Select
+            style={{ width: "100%" }}
+            placeholder="Nhóm thuê bao"
+            value={value as string}
+            onChange={(e) => onChange(e)}
+            allowClear
+            options={
+              groupSimsData?.data.map((group) => ({
+                label: group.name,
+                value: group.name,
+              })) ?? []
+            }
+          />
+        ),
+      },
+      {
+        filterKey: "contractCode",
+        label: "Mã hợp đồng",
+
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Mã hợp đồng"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "contractor",
+        label: "Người ký HĐ",
+
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Người ký HĐ"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "customer",
+        label: "Khách hàng",
+
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 4 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Khách hàng"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "provinceCode",
+        label: "Tỉnh/TP",
+
+        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Tỉnh/TP"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "ratingPlanId",
+        label: "Gói cước",
+        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
+        render: (value, onChange) => (
+          <Select
+            placeholder="Gói cước"
+            value={(value as string) || undefined}
+            popupMatchSelectWidth={200}
+            onChange={(v) => onChange(v)}
+            allowClear
+            style={{ width: "100%" }}
+            options={
+              ratingPlansData?.data.map((rp) => ({
+                label: `${rp.name} - (${rp.code})`,
+                value: rp.ratingPlanId,
+              })) ?? []
+            }
+          />
+        ),
+        toUrlParams: (v) => ({
+          ratingPlanId: v != null ? String(v) : undefined,
+        }),
+        fromUrlParams: (p) => p.get("ratingPlanId") ?? undefined,
+      },
+      {
+        filterKey: "status",
+        label: "Trạng thái",
+        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
+        render: (value, onChange) => (
+          <Select
+            style={{ width: "100%" }}
+            value={value as string}
+            onChange={(v) => onChange(v)}
+            placeholder="Trạng thái"
+            allowClear
+            options={VIN_STATUS_OPTIONS.map((o) => ({
+              label: o.label,
+              value: o.value,
+            }))}
+          />
+        ),
+        toUrlParams: (v) => ({ status: v != null ? String(v) : undefined }),
+        fromUrlParams: (p) => p.get("status") ?? undefined,
+      },
+      {
+        filterKey: "simType",
+        label: "Loại SIM",
+        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
+        render: (value, onChange) => (
+          <Select
+            style={{ width: "100%" }}
+            value={value}
+            onChange={(v) => onChange(v)}
+            placeholder="Loại SIM"
+            allowClear
+            options={[
+              {
+                label: "Sim M2M",
+                value: "0",
+              },
+              {
+                label: "eSIM",
+                value: "1",
+              },
+            ]}
+          />
+        ),
+        toUrlParams: (v) => ({ simType: v != null ? String(v) : undefined }),
+        fromUrlParams: (p) => p.get("simType") ?? undefined,
+      },
+      {
+        filterKey: "dateRange",
+        label: "Ngày kích hoạt",
+        defaultValue: [null, null] as [dayjs.Dayjs | null, dayjs.Dayjs | null],
+        colSpan: { xs: 24, sm: 24, md: 10, lg: 8 },
+        render: (value, onChange) => (
+          <RangePicker
+            style={{ width: "100%" }}
+            value={value as [dayjs.Dayjs | null, dayjs.Dayjs | null]}
+            onChange={(v) => onChange(v ? [v[0], v[1]] : [null, null])}
+            placeholder={["Từ ngày kích hoạt", "Đến ngày"]}
+            format="DD/MM/YYYY"
+          />
+        ),
+        toUrlParams: (v) => {
+          const dr = v as [dayjs.Dayjs | null, dayjs.Dayjs | null];
+          return {
+            dateFrom: dr[0]?.format("YYYY-MM-DD"),
+            dateTo: dr[1]?.format("YYYY-MM-DD"),
+          };
+        },
+        fromUrlParams: (p) =>
+          [
+            p.get("dateFrom") ? dayjs(p.get("dateFrom")!) : null,
+            p.get("dateTo") ? dayjs(p.get("dateTo")!) : null,
+          ] as [dayjs.Dayjs | null, dayjs.Dayjs | null],
+      },
+      // Hidden field — not shown in toolbox, only used for URL sync
+      {
+        filterKey: "sort",
+        label: "Sắp xếp",
+        render: () => null,
+      },
+    ],
+    [ratingPlansData, groupSimsData],
+  );
+
+  // ── Filters hook (manages state + URL sync + field visibility) ─────────
+  const { filterValues, filterBar, filterToolbox, setFilterValue } =
+    useFilters<FilterKey>({
+      fields: filterFields,
+      storageKey: "sim-filters",
+      defaultVisibleKeys: VISIBLE_FILTER_KEYS,
     });
-  };
 
   // ── Data fetching ─────────────────────────────────────────────────────
-  const queryParams = useMemo(
-    () => ({
-      search: keySearch || undefined,
-      msisdn: msisdn || undefined,
-      imsi: imsi || undefined,
-      contractCode: contractCode || undefined,
-      contractor: contractor || undefined,
-      customer: customer || undefined,
-      status: status !== "all" ? Number(status) : undefined,
-      provinceCode: provinceCode || undefined,
-      ratingPlanId: ratingPlanId ? Number(ratingPlanId) : undefined,
-      simType: simType !== "all" ? Number(simType) : undefined,
-      dateFrom: dateRange[0]?.format("YYYY-MM-DD"),
-      dateTo: dateRange[1]?.format("YYYY-MM-DD"),
+  const queryParams = useMemo(() => {
+    const toNum = (v: unknown) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const dr = filterValues.dateRange as [
+      dayjs.Dayjs | null,
+      dayjs.Dayjs | null,
+    ];
+    return {
+      search: (filterValues.search as string) || undefined,
+      msisdn: (filterValues.msisdn as string) || undefined,
+      imsi: (filterValues.imsi as string) || undefined,
+      contractCode: (filterValues.contractCode as string) || undefined,
+      contractor: (filterValues.contractor as string) || undefined,
+      customer: (filterValues.customer as string) || undefined,
+      status: toNum(filterValues.status),
+      provinceCode: (filterValues.provinceCode as string) || undefined,
+      ratingPlanId: toNum(filterValues.ratingPlanId),
+      simType: toNum(filterValues.simType),
+      dateFrom: dr[0]?.format("YYYY-MM-DD"),
+      dateTo: dr[1]?.format("YYYY-MM-DD"),
       pageSize: pagination.pageSize,
       page: pagination.current,
-    }),
-    [
-      keySearch,
-      msisdn,
-      imsi,
-      contractCode,
-      contractor,
-      customer,
-      status,
-      provinceCode,
-      ratingPlanId,
-      simType,
-      dateRange,
-      pagination,
-    ],
-  );
+      groupName: (filterValues.groupName as string) || undefined,
+      sort: (filterValues.sort as string) || undefined,
+    };
+  }, [filterValues, pagination]);
 
   const {
     data: simsData,
@@ -312,8 +473,6 @@ const SimManagement: React.FC = () => {
     isFetching,
     isRefetching,
   } = useSims(queryParams);
-
-  const { data: ratingPlansData } = useRatingPlans({ page: 1, pageSize: 1000 });
   const alerts = useAlerts().data ?? [];
   const { data: triggeredData } = useTriggeredAlerts();
 
@@ -336,9 +495,15 @@ const SimManagement: React.FC = () => {
       colKey: "phone",
       title: "Số điện thoại",
       dataIndex: "phoneNumber",
-      key: "phone",
+      key: "phoneNumber",
       fixed: "left",
       width: 145,
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("phoneNumber:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
       render: (v, record) => (
         <Space size={4}>
           {alertSimIds.has(record.id) && <Badge status="error" />}
@@ -350,6 +515,19 @@ const SimManagement: React.FC = () => {
             {v}
           </Text>
         </Space>
+      ),
+      filterDropdown: ({ confirm, close }) => (
+        <CustomTableFilter
+          filterKey="search"
+          setFilterValue={setFilterValue}
+          close={close}
+          confirm={confirm}
+        />
+      ),
+      filterIcon: () => (
+        <SearchOutlined
+          style={{ color: !!filterValues.search ? "#1677ff" : undefined }}
+        />
       ),
     },
     {
@@ -381,6 +559,15 @@ const SimManagement: React.FC = () => {
         ) : (
           <Text type="secondary">—</Text>
         ),
+    },
+    {
+      colKey: "groupName",
+      title: "Nhóm thuê bao",
+      dataIndex: "groupName",
+      key: "groupName",
+      width: 180,
+      render: (v) =>
+        v ? <Tag color="purple">{v}</Tag> : <Text type="secondary">—</Text>,
     },
     {
       colKey: "contract",
@@ -485,12 +672,17 @@ const SimManagement: React.FC = () => {
       },
     },
     {
-      colKey: "used",
+      colKey: "usedMB",
       title: "Dung lượng",
       dataIndex: "usedMB",
-      key: "used",
+      key: "usedMB",
       width: 130,
-      sorter: (a, b) => a.usedMB - b.usedMB,
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("usedMB:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
       render: (v, record) => {
         const relevantAlerts = alerts.filter(
           (a) =>
@@ -614,7 +806,13 @@ const SimManagement: React.FC = () => {
     },
   ];
 
-  const columns = allColumns.filter((c) => visibleCols.includes(c.colKey));
+  const { tableColumns: columns, popover: columnPickerButton } = useColumns({
+    allColumns,
+    localStorageKey: STORAGE_KEY,
+    allColumnsKeys: ALL_COLUMN_KEYS,
+    columnLabels: COLUMN_LABELS,
+    defaultVisibleKeys: DEFAULT_VISIBLE,
+  });
 
   // ── Export ────────────────────────────────────────────────────────────
   const rowSelection: TableRowSelection<SimCard> = {
@@ -634,43 +832,7 @@ const SimManagement: React.FC = () => {
   };
 
   // ── Column picker popover ─────────────────────────────────────────────
-  const columnPicker = (
-    <div style={{ width: 280 }}>
-      <div style={{ marginBottom: 8, fontWeight: 600 }}>Hiển thị cột</div>
-      <Row gutter={[0, 4]}>
-        {ALL_COLUMN_KEYS.map((k) => (
-          <Col span={12} key={k}>
-            <Checkbox
-              checked={visibleCols.includes(k)}
-              onChange={(e) => toggleColumn(k, e.target.checked)}
-            >
-              {COLUMN_LABELS[k]}
-            </Checkbox>
-          </Col>
-        ))}
-      </Row>
-      <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-        <Button
-          size="small"
-          onClick={() => {
-            setVisibleCols([...ALL_COLUMN_KEYS]);
-            saveVisibleColumns([...ALL_COLUMN_KEYS]);
-          }}
-        >
-          Hiện tất cả
-        </Button>
-        <Button
-          size="small"
-          onClick={() => {
-            setVisibleCols(DEFAULT_VISIBLE);
-            saveVisibleColumns(DEFAULT_VISIBLE);
-          }}
-        >
-          Mặc định
-        </Button>
-      </div>
-    </div>
-  );
+  // (managed by useColumns hook — exposes `columnPickerButton`)
 
   return (
     <div>
@@ -689,13 +851,8 @@ const SimManagement: React.FC = () => {
           📱 Danh sách SIM M2M
         </Title>
         <Space wrap>
-          <Popover
-            content={columnPicker}
-            trigger="click"
-            placement="bottomRight"
-          >
-            <Button icon={<SettingOutlined />}>Cột hiển thị</Button>
-          </Popover>
+          {filterToolbox}
+          {columnPickerButton}
           <Tooltip title="Xuất tất cả SIM trong bộ lọc hiện tại">
             <Button
               icon={<DownloadOutlined />}
@@ -718,119 +875,10 @@ const SimManagement: React.FC = () => {
         </Space>
       </div>
 
+      <SyncPanel />
+
       {/* Filters */}
-      <Card style={{ marginBottom: 12 }}>
-        <Row gutter={[10, 10]}>
-          <Col xs={24} sm={12} md={6} lg={4}>
-            <Input
-              placeholder="Tìm kiếm (SĐT/IMSI/hợp đồng…)"
-              prefix={<SearchOutlined />}
-              value={keySearch}
-              onChange={(e) => setKeySearch(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={24} sm={12} md={5} lg={3}>
-            <Input
-              placeholder="MSISDN"
-              value={msisdn}
-              onChange={(e) => setMsisdn(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={24} sm={12} md={5} lg={3}>
-            <Input
-              placeholder="IMSI"
-              value={imsi}
-              onChange={(e) => setImsi(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={24} sm={12} md={5} lg={3}>
-            <Input
-              placeholder="Mã hợp đồng"
-              value={contractCode}
-              onChange={(e) => setContractCode(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={24} sm={12} md={5} lg={3}>
-            <Input
-              placeholder="Người ký HĐ"
-              value={contractor}
-              onChange={(e) => setContractor(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={24} sm={12} md={5} lg={4}>
-            <Input
-              placeholder="Khách hàng"
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={24} sm={12} md={4} lg={3}>
-            <Input
-              placeholder="Tỉnh/TP"
-              value={provinceCode}
-              onChange={(e) => setProvinceCode(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={24} sm={12} md={4} lg={3}>
-            <Select
-              placeholder="Gói cước"
-              value={ratingPlanId}
-              popupMatchSelectWidth={200}
-              onChange={(value) => setRatingPlanId(value)}
-              allowClear
-              options={
-                ratingPlansData?.data.map((rp) => ({
-                  label: `${rp.name} - (${rp.code})`,
-                  value: rp.ratingPlanId,
-                })) ?? []
-              }
-            />
-          </Col>
-          <Col xs={24} sm={12} md={4} lg={3}>
-            <Select
-              style={{ width: "100%" }}
-              value={status}
-              onChange={setStatus}
-              placeholder="Trạng thái"
-            >
-              <Option value="all">Tất cả trạng thái</Option>
-              {VIN_STATUS_OPTIONS.map((o) => (
-                <Option key={o.value} value={o.value}>
-                  {o.label}
-                </Option>
-              ))}
-            </Select>
-          </Col>
-          <Col xs={24} sm={12} md={4} lg={3}>
-            <Select
-              style={{ width: "100%" }}
-              value={simType}
-              onChange={setSimType}
-              placeholder="Loại SIM"
-            >
-              <Option value="all">Tất cả loại SIM</Option>
-              <Option value="0">Vật lý</Option>
-              <Option value="1">eSIM</Option>
-            </Select>
-          </Col>
-          <Col xs={24} sm={24} md={10} lg={8}>
-            <RangePicker
-              style={{ width: "100%" }}
-              value={dateRange}
-              onChange={(v) => setDateRange(v ? [v[0], v[1]] : [null, null])}
-              placeholder={["Từ ngày kích hoạt", "Đến ngày"]}
-              format="DD/MM/YYYY"
-            />
-          </Col>
-        </Row>
-      </Card>
+      <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
 
       {/* Table */}
       <Card>

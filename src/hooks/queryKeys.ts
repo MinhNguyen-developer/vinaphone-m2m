@@ -1,4 +1,9 @@
-import type { SimListParams, UsageHistoryParams } from "../types";
+import type {
+  GroupSimListParams,
+  RatingPlanListParams,
+  SimListParams,
+  UsageHistoryParams,
+} from "../types";
 
 export const queryKeys = {
   sims: {
@@ -24,6 +29,12 @@ export const queryKeys = {
   },
   ratingPlans: {
     all: ["rating-plans"] as const,
-    list: (params?: any) => ["rating-plans", "list", params ?? {}] as const,
+    list: (params?: RatingPlanListParams) =>
+      ["rating-plans", "list", params ?? {}] as const,
+  },
+  groupSims: {
+    all: ["group-sims"] as const,
+    list: (params?: GroupSimListParams) =>
+      ["group-sims", "list", params ?? {}] as const,
   },
 } as const;
