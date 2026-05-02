@@ -1,189 +1,370 @@
-import React, { useState } from 'react';
-import { Card, Table, Tag, Typography, Row, Col, Statistic, Progress, Drawer, Space, Spin } from 'antd';
-import { CrownOutlined, MobileOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import type { MasterSimWithRemaining, SimCard } from '../types';
-import { formatMB } from '../utils';
-import SimStatusBadge from '../components/SIM/SimStatusBadge';
-import { useMasterSimMembers, useMasterSims } from '../hooks/useMasterSims';
+import React, { useEffect, useMemo, useState } from "react";
+import { Card, Table, Tag, Typography, Space, Button } from "antd";
+import { SearchOutlined, TeamOutlined } from "@ant-design/icons";
+import type {
+  ColumnsType,
+  TablePaginationConfig,
+  SorterResult,
+} from "antd/es/table/interface";
+import type { MonthlyDataUsage, SimCard } from "../types";
+import { useMasterSims } from "../hooks/useMasterSims";
+import SimGroupMembersModal from "../components/SIM/SimGroupMembersModal";
+import SimMasterMembersModal from "../components/SIM/SimMasterMembersModal";
+import dayjs from "dayjs";
+import formatNumber from "../utils/formatNumber";
+import { DebouncedInput } from "../components/DebouncedInput";
+import { CustomTableFilter } from "../components/CustomTableFilter";
+import { ServerSelect } from "../components/ServerSelect";
+import { type FilterField, useFilters } from "../hooks/useFilters";
+import { queryKeys } from "../hooks/queryKeys";
+import { ratingPlansApi } from "../api/rating-plans.api";
 
 const { Title, Text } = Typography;
 
+// ─── Filter keys ─────────────────────────────────────────────────────────────
+
+const ALL_FILTER_KEYS = [
+  "search",
+  "msisdn",
+  "imsi",
+  "contractCode",
+  "ratingPlanId",
+  "sort",
+] as const;
+type FilterKey = (typeof ALL_FILTER_KEYS)[number];
+
+const VISIBLE_FILTER_KEYS = ALL_FILTER_KEYS.filter(
+  (k) => k !== "sort",
+) as FilterKey[];
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 const MasterSims: React.FC = () => {
-  const { data: masterSims = [], isLoading } = useMasterSims();
-  const [selectedCode, setSelectedCode] = useState<string | null>(null);
-  const { data: memberSims = [], isLoading: membersLoading } = useMasterSimMembers(selectedCode);
+  const [pagination, setPagination] = useState<TablePaginationConfig>({
+    current: 1,
+    pageSize: 10,
+    pageSizeOptions: ["10", "20", "50"],
+    showSizeChanger: true,
+  });
 
-  const selectedMaster = masterSims.find((m) => m.code === selectedCode) ?? null;
+  const [modalSim, setModalSim] = useState<SimCard | null>(null);
+  const [groupModalId, setGroupModalId] = useState<string | null>(null);
+  const [groupModalName, setGroupModalName] = useState<string | null>(null);
 
-  const getUsagePct = (m: MasterSimWithRemaining) =>
-    m.packageCapacityMB > 0
-      ? Math.min(Math.round((m.usedMB / m.packageCapacityMB) * 100), 100)
-      : 0;
+  // ── Filter fields ─────────────────────────────────────────────────────
+  const filterFields = useMemo<FilterField<FilterKey, any>[]>(
+    () => [
+      {
+        filterKey: "search",
+        label: "Từ khóa",
+        colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Tìm kiếm SĐT"
+            prefix={<SearchOutlined />}
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "msisdn",
+        label: "MSISDN",
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="MSISDN"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "imsi",
+        label: "IMSI",
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="IMSI"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "contractCode",
+        label: "Mã hợp đồng",
+        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Mã hợp đồng"
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "ratingPlanId",
+        label: "Gói cước",
+        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
+        render: (value, onChange) => (
+          <ServerSelect
+            queryKey={queryKeys.ratingPlans.list()}
+            placeholder="Gói cước"
+            value={(value as string) || undefined}
+            popupMatchSelectWidth={400}
+            fetchFn={({ page, pageSize, search }) =>
+              ratingPlansApi.getList({ page, pageSize, search })
+            }
+            onChange={(v) => onChange(v)}
+            allowClear
+            style={{ width: "100%" }}
+            getOptionValue={(rp) => String(rp.ratingPlanId)}
+            getOptionLabel={(rp) => `${rp.name} - (${rp.code})`}
+          />
+        ),
+        toUrlParams: (v) => ({
+          ratingPlanId: v != null ? String(v) : undefined,
+        }),
+        fromUrlParams: (p) => p.get("ratingPlanId") ?? undefined,
+      },
+      // Hidden — only for URL sync
+      {
+        filterKey: "sort",
+        label: "Sắp xếp",
+        render: () => null,
+      },
+    ],
+    [],
+  );
 
-  const getPctColor = (pct: number) =>
-    pct >= 90 ? '#ff4d4f' : pct >= 70 ? '#faad14' : '#52c41a';
+  const { filterValues, filterBar, filterToolbox, setFilterValue } =
+    useFilters<FilterKey>({
+      fields: filterFields,
+      storageKey: "master-sim-filters",
+      defaultVisibleKeys: VISIBLE_FILTER_KEYS,
+    });
 
-  const columns: ColumnsType<MasterSimWithRemaining> = [
+  // ── Reset page on filter change ───────────────────────────────────────
+  const nonSortFilterKey = JSON.stringify(
+    Object.fromEntries(
+      Object.entries(filterValues).filter(([k]) => k !== "sort"),
+    ),
+  );
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, current: 1 }));
+  }, [nonSortFilterKey]);
+
+  // ── Query params ──────────────────────────────────────────────────────
+  const queryParams = useMemo(() => {
+    const toNum = (v: unknown) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    return {
+      page: pagination.current,
+      pageSize: pagination.pageSize,
+      search: (filterValues.search as string) || undefined,
+      msisdn: (filterValues.msisdn as string) || undefined,
+      imsi: (filterValues.imsi as string) || undefined,
+      contractCode: (filterValues.contractCode as string) || undefined,
+      ratingPlanId: toNum(filterValues.ratingPlanId),
+      sort: (filterValues.sort as string) || undefined,
+    };
+  }, [filterValues, pagination]);
+
+  const { data: { data: members = [], total } = {}, isLoading } =
+    useMasterSims(queryParams);
+
+  // ── Table change (pagination + sort) ─────────────────────────────────
+  const handleTableChange = (
+    newPagination: TablePaginationConfig,
+    _filters: Record<string, unknown>,
+    sorter: SorterResult<SimCard> | SorterResult<SimCard>[],
+  ) => {
+    setPagination(newPagination);
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    const sortValue =
+      s.columnKey && s.order
+        ? `${String(s.columnKey)}:${s.order === "ascend" ? "asc" : "desc"}`
+        : undefined;
+    setFilterValue("sort", sortValue ?? "");
+  };
+
+  const sortStr = filterValues.sort as string | undefined;
+  const sortOrder = (field: string) =>
+    sortStr?.startsWith(`${field}:`)
+      ? sortStr.endsWith(":asc")
+        ? ("ascend" as const)
+        : ("descend" as const)
+      : null;
+
+  // ── Columns ───────────────────────────────────────────────────────────
+  const columns: ColumnsType<SimCard> = [
     {
-      title: 'Mã SIM chủ', dataIndex: 'code', key: 'code',
-      render: (v) => (
-        <Tag
-          color="gold"
-          icon={<CrownOutlined />}
-          style={{ fontSize: 14, padding: '4px 12px', cursor: 'pointer' }}
-          onClick={() => setSelectedCode(v)}
-        >
-          {v}
-        </Tag>
+      title: "Số điện thoại",
+      dataIndex: "phoneNumber",
+      key: "phoneNumber",
+      fixed: "left",
+      sorter: true,
+      sortOrder: sortOrder("phoneNumber"),
+      render: (v, record) => (
+        <Space size={4}>
+          <Text
+            strong
+            style={{ color: "#1677ff", cursor: "pointer" }}
+            onClick={() => setModalSim(record)}
+          >
+            {v}
+          </Text>
+        </Space>
+      ),
+      filterDropdown: ({ confirm, close }) => (
+        <CustomTableFilter
+          filterKey="search"
+          setFilterValue={setFilterValue}
+          close={close}
+          confirm={confirm}
+        />
+      ),
+      filterIcon: () => (
+        <SearchOutlined
+          style={{ color: !!filterValues.search ? "#1677ff" : undefined }}
+        />
       ),
     },
-    { title: 'Số điện thoại', dataIndex: 'phoneNumber', key: 'phone' },
-    { title: 'Tên gói', dataIndex: 'packageName', key: 'package', render: (v) => <Tag color="green">{v}</Tag> },
     {
-      title: 'Đã dùng / Tổng gói', key: 'usage',
-      render: (_, m) => {
-        const pct = getUsagePct(m);
-        return (
-          <Space direction="vertical" style={{ width: 160 }} size={2}>
-            <Text style={{ color: getPctColor(pct) }}>
-              {formatMB(m.usedMB)} / <strong>{formatMB(m.packageCapacityMB)}</strong>
-            </Text>
-            <Progress percent={pct} size="small" strokeColor={getPctColor(pct)} showInfo={false} />
-          </Space>
+      title: "IMSI",
+      dataIndex: "imsi",
+      key: "imsi",
+      sorter: true,
+      sortOrder: sortOrder("imsi"),
+      render: (v) =>
+        v ? (
+          <Text code style={{ fontSize: 11 }}>
+            {v}
+          </Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "Mã hợp đồng",
+      dataIndex: "contractCode",
+      key: "contractCode",
+      sorter: true,
+      sortOrder: sortOrder("contractCode"),
+      render: (v) =>
+        v ? <Tag color="geekblue">{v}</Tag> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: "Gói cước",
+      dataIndex: "ratingPlanName",
+      key: "ratingPlanName",
+      sorter: true,
+      sortOrder: sortOrder("ratingPlanName"),
+      render: (v, r) =>
+        (v ?? r.productCode) ? (
+          <Tag color="blue">{v ?? r.productCode}</Tag>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "Dung lượng sử dụng (tháng)",
+      dataIndex: "monthlyDataUsages",
+      key: "monthlyDataUsages",
+      sorter: true,
+      sortOrder: sortOrder("usedMB"),
+      render: (v?: MonthlyDataUsage[]) => {
+        const currentMonth = dayjs().format("YYYY-MM");
+        const currentUsage = v?.find((u) => u.month === currentMonth);
+        return currentUsage ? (
+          <Text style={{ fontSize: 11 }}>
+            {formatNumber(currentUsage.dataUsedMB)} /{" "}
+            {formatNumber(currentUsage.totalData)} MB
+          </Text>
+        ) : (
+          <Text type="secondary">—</Text>
         );
       },
     },
     {
-      title: 'Còn lại', key: 'remaining',
-      render: (_, m) => {
-        const remaining = m.remainingMB;
-        return <Text strong style={{ color: remaining > 0 ? '#52c41a' : '#ff4d4f' }}>{formatMB(remaining)}</Text>;
+      title: "Thuê bao thành viên",
+      key: "sogMembers",
+      width: 180,
+      render: (_v, record) => {
+        if (!record.sogGroupId || record.sogIsOwner !== true)
+          return <Text type="secondary">—</Text>;
+        return (
+          <Button
+            size="small"
+            icon={<TeamOutlined />}
+            onClick={() => {
+              setGroupModalId(record.sogGroupId!);
+              setGroupModalName(record.sogGroupName ?? null);
+            }}
+          >
+            Xem thành viên
+          </Button>
+        );
       },
     },
-    {
-      title: 'SIM thành viên', key: 'members',
-      render: (_, m) => (
-        <Tag
-          icon={<MobileOutlined />}
-          color="blue"
-          style={{ cursor: 'pointer' }}
-          onClick={() => setSelectedCode(m.code)}
-        >
-          Xem
-        </Tag>
-      ),
-    },
-    { title: 'Mô tả', dataIndex: 'description', key: 'desc', render: (v) => v ?? <Text type="secondary">—</Text> },
-  ];
-
-  const memberColumns: ColumnsType<SimCard> = [
-    { title: 'Số điện thoại', dataIndex: 'phoneNumber', key: 'phone', render: (v) => <Text strong>{v}</Text> },
-    { title: 'IMSI', dataIndex: 'imsi', key: 'imsi', render: (v) => v ? <Text code style={{ fontSize: 12 }}>{v}</Text> : '—' },
-    { title: 'Mã hợp đồng', dataIndex: 'contractCode', key: 'contract', render: (v) => v ? <Tag color="geekblue">{v}</Tag> : '—' },
-    { title: 'Mã sản phẩm', dataIndex: 'productCode', key: 'code', render: (v) => <Tag color="blue">{v}</Tag> },
-    { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (v) => <SimStatusBadge status={v} /> },
-    { title: 'Đã dùng', dataIndex: 'usedMB', key: 'used', render: (v) => formatMB(v) },
   ];
 
   return (
     <div>
-      <Title level={3}>👑 SIM chủ M2M</Title>
-      <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-        Bấm vào mã SIM chủ hoặc nút "Xem" để xem danh sách SIM thành viên.
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        <Title level={3} style={{ margin: 0 }}>
+          👑 Sim Chủ
+        </Title>
+        <Space wrap>{filterToolbox}</Space>
+      </div>
+
+      <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+        Danh sách sim chủ.
       </Text>
 
-      {isLoading && (
-        <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Spin size="large" tip="Đang tải SIM chủ..." />
-        </div>
-      )}
+      {/* Filters */}
+      <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
 
-      {!isLoading && masterSims.length === 0 && (
-        <Card style={{ marginBottom: 24 }}>
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <span style={{ fontSize: 48 }}>👑</span>
-            <p style={{ color: '#999', marginTop: 12 }}>Chưa có SIM chủ nào.</p>
-          </div>
-        </Card>
-      )}
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {masterSims.map((m) => {
-          const pct = getUsagePct(m);
-          const remaining = m.remainingMB;
-          return (
-            <Col xs={24} sm={12} lg={8} key={m.id}>
-              <Card
-                style={{ borderLeft: `4px solid ${getPctColor(pct)}`, cursor: 'pointer' }}
-                title={<span><CrownOutlined style={{ color: '#faad14', marginRight: 8 }} />{m.code.toUpperCase()}</span>}
-                extra={<Tag color="blue" icon={<MobileOutlined />}>SIM</Tag>}
-                onClick={() => setSelectedCode(m.code)}
-                hoverable
-              >
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Statistic title="Đã sử dụng" value={formatMB(m.usedMB)} valueStyle={{ color: getPctColor(pct), fontSize: 18 }} />
-                  </Col>
-                  <Col span={12}>
-                    <Statistic title="Còn lại" value={formatMB(remaining)} valueStyle={{ color: '#52c41a', fontSize: 18 }} />
-                  </Col>
-                </Row>
-                <div style={{ marginTop: 8 }}><Text type="secondary">Gói: </Text><Tag color="green">{m.packageName}</Tag></div>
-                <div style={{ marginTop: 4 }}><Text type="secondary">SĐT: </Text><Text>{m.phoneNumber}</Text></div>
-                <Progress
-                  percent={pct}
-                  status={pct >= 90 ? 'exception' : 'active'}
-                  strokeColor={getPctColor(pct)}
-                  format={() => `${pct}% (${formatMB(m.usedMB)} / ${formatMB(m.packageCapacityMB)})`}
-                  style={{ marginTop: 12 }}
-                />
-              </Card>
-            </Col>
-          );
-        })}
-      </Row>
-
-      <Card title="Danh sách SIM chủ">
-        <Table dataSource={masterSims} columns={columns} rowKey="id" size="middle" pagination={false} loading={isLoading} />
+      <Card>
+        <Table
+          title={() => (
+            <Title level={5}>{`Tổng: ${total ?? 0} thuê bao`}</Title>
+          )}
+          dataSource={members}
+          columns={columns}
+          scroll={{ x: "max-content" }}
+          rowKey="id"
+          onChange={handleTableChange}
+          size="small"
+          pagination={{ ...pagination, total }}
+          loading={isLoading}
+        />
       </Card>
 
-      {/* Member SIMs Drawer */}
-      <Drawer
-        title={
-          selectedMaster
-            ? `SIM thành viên của ${selectedMaster.code.toUpperCase()} (${memberSims.length} SIM)`
-            : 'SIM thành viên'
-        }
-        open={!!selectedCode}
-        onClose={() => setSelectedCode(null)}
-        width={800}
-        extra={
-          selectedMaster && (
-            <Tag color="green">
-              Còn lại: {formatMB(selectedMaster.remainingMB)} / {formatMB(selectedMaster.packageCapacityMB)}
-            </Tag>
-          )
-        }
-      >
-        {membersLoading
-          ? <Spin style={{ display: 'block', margin: '40px auto' }} />
-          : memberSims.length === 0 ? (
-          <Text type="secondary">Không có SIM thành viên nào.</Text>
-        ) : (
-          <Table
-            dataSource={memberSims}
-            columns={memberColumns}
-            rowKey="id"
-            size="small"
-            scroll={{ x: 600 }}
-            pagination={{ pageSize: 10 }}
-          />
-        )}
-      </Drawer>
+      <SimMasterMembersModal sim={modalSim} onClose={() => setModalSim(null)} />
+
+      <SimGroupMembersModal
+        groupId={groupModalId}
+        groupName={groupModalName}
+        onClose={() => {
+          setGroupModalId(null);
+          setGroupModalName(null);
+        }}
+      />
     </div>
   );
 };
 
 export default MasterSims;
-

@@ -1,15 +1,23 @@
 import type {
   PaginatedResponse,
+  SimBasic,
   SimCard,
   SimListParams,
   SimUsageHistoryResponse,
   UsageHistoryParams,
-  SimGroupMember,
   QueryGroupMembersParams,
 } from "../types";
 import { apiClient } from "./client";
 
 export const simsApi = {
+  /**
+   * GET /sims/all – all SIMs without pagination (id, phoneNumber, ratingPlanName, productCode only)
+   */
+  getAll: async (): Promise<SimBasic[]> => {
+    const res = await apiClient.get<SimBasic[]>("/sims/all");
+    return res.data;
+  },
+
   /**
    * GET /sims – paginated list with optional filters
    */
@@ -31,6 +39,21 @@ export const simsApi = {
     action: "confirm" | "reset",
   ): Promise<SimCard> => {
     const res = await apiClient.patch<SimCard>(`/sims/${id}/status`, {
+      action,
+    });
+    return res.data;
+  },
+
+  /**
+   * PATCH /sims/batch-update-status
+   * action: "confirm" | "reset"
+   */
+  batchUpdateStatus: async (
+    ids: string[],
+    action: "confirm" | "reset",
+  ): Promise<SimCard> => {
+    const res = await apiClient.patch<SimCard>(`/sims/batch-update-status`, {
+      ids,
       action,
     });
     return res.data;
@@ -70,8 +93,8 @@ export const simsApi = {
   getGroupMembers: async (
     groupId: string,
     query?: QueryGroupMembersParams,
-  ): Promise<PaginatedResponse<SimGroupMember>> => {
-    const res = await apiClient.get<PaginatedResponse<SimGroupMember>>(
+  ): Promise<PaginatedResponse<SimCard>> => {
+    const res = await apiClient.get<PaginatedResponse<SimCard>>(
       `/sims/group-members/${groupId}`,
       { params: query },
     );

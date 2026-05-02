@@ -1,8 +1,24 @@
+// ===== DASHBOARD =====
+export interface DashboardOverview {
+  totalSims: number;
+  newSims: number;
+  needConfirmationSims: number;
+  confirmedSims: number;
+  simsWithAlert: number;
+}
+
+export interface SimGroupByRatingPlan {
+  ratingPlanId: number | null;
+  ratingPlanName: string | null;
+  _count: { _all: number };
+  _sum: { usedMB: number | null };
+}
+
 // ===== STATUS =====
 export const SimStatus = {
-  NEW: "Mới",
-  ACTIVE: "Đã hoạt động",
-  CONFIRMED: "Đã xác nhận",
+  NEW: 1,
+  ACTIVE: 2,
+  CONFIRMED: 3,
 } as const;
 export type SimStatus = (typeof SimStatus)[keyof typeof SimStatus];
 
@@ -25,9 +41,54 @@ export interface AlertConfig {
   simId?: string; // if set on a single SIM
   groupId?: string; // if set on a group
   productCode?: string; // if set on a product code
+  ratingPlanId?: number; // if set on a rating plan
   thresholdMB: number;
   label: string;
   active: boolean;
+}
+
+export interface QueryAlertParams {
+  label?: string;
+  active?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface MonthlyDataUsage {
+  id: string;
+  month: string;
+  msisdn: string;
+  smsNoiMangUsed: number | null;
+  smsNgoaiMangUsed: number | null;
+  dataUsedMB: number | null;
+  smsQuocTeUsed: number | null;
+  totalData: number | null;
+  totalSmsNoiMang: number | null;
+  totalSmsNgoaiMang: number | null;
+  totalSmsQuocTe: number | null;
+}
+
+export interface SimGroup {
+  simId: string;
+  groupId: string;
+  group?: Group;
+  sim?: SimCard;
+}
+export interface Group {
+  // Nhóm thiết bị
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: Date;
+}
+export interface SimBasic {
+  id: string;
+  phoneNumber: string;
+  ratingPlanName: string | null;
+  productCode: string;
+  status: SimStatus;
+  usedMB: number;
+  firstUsedAt: string | null;
 }
 
 export interface SimCard {
@@ -77,6 +138,8 @@ export interface SimCard {
   sogIsOwner?: boolean | null;
   usageHistory?: UsageHistory[];
   alerts?: AlertConfig[];
+  monthlyDataUsages?: MonthlyDataUsage[];
+  simGroups?: Partial<SimGroup>[];
 }
 
 export interface SimGroupMember {
@@ -90,12 +153,11 @@ export interface SimGroupMember {
 
 export interface MasterSim {
   id: string;
-  code: string; // m2m3, m2m4, m2m7...
-  phoneNumber: string;
-  packageName: string;
-  packageCapacityMB: number; // Tổng dung lượng gói (MB)
-  usedMB: number; // Dung lượng đã sử dụng tổng cộng bởi các SIM thành viên (MB)
-  description?: string;
+  groupId: string;
+  msisdn: string;
+  ratingPlanName?: string | null;
+  status?: number | null;
+  syncedAt?: string | null;
 }
 
 // ===== API REQUEST / RESPONSE TYPES =====
@@ -131,12 +193,29 @@ export interface SimListParams {
   masterSimCode?: string;
   search?: string;
   systemStatus?: string;
+  groupId?: string | string[];
 }
 
-export interface QueryGroupMembersParams {
+export interface QueryPaginatedparams {
   page?: number;
   pageSize?: number;
+}
+
+export interface QueryGroupMembersParams extends QueryPaginatedparams {
   msisdn?: string;
+}
+
+export interface QueryGroupDevicesParams extends QueryPaginatedparams {
+  search?: string;
+}
+
+export interface QueryMasterSimParams extends QueryPaginatedparams {
+  search?: string;
+  msisdn?: string;
+  imsi?: string;
+  contractCode?: string;
+  ratingPlanId?: number;
+  sort?: string;
 }
 
 export interface UsageHistoryParams {
@@ -147,15 +226,14 @@ export interface UsageHistoryParams {
 export interface SimUsageHistoryResponse {
   phoneNumber: string;
   imsi?: string;
-  history: UsageHistory[];
+  history: MonthlyDataUsage[];
 }
 
-export interface MasterSimWithRemaining extends MasterSim {
-  remainingMB: number;
-}
+export type MasterSimWithRemaining = MasterSim;
 
 export interface GroupWithCount extends ProductGroup {
   simCount: number;
+  totalUsedMB: number;
 }
 
 export interface TriggeredAlert {

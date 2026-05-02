@@ -13,4 +13,8 @@ export const ratingPlansApi = {
     );
     return res.data;
   },
+  findByRatingPlanId: async (id: number) => {
+    const res = await apiClient.get<RatingPlan>(`/rating-plans/${id}`);
+    return res.data;
+  },
 };

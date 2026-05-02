@@ -11,3 +11,12 @@ export const useRatingPlans = (params?: RatingPlanListParams) => {
     placeholderData: (prev) => prev,
   });
 };
+
+export const useGetRatingPlanByRatingPlanId = (id: number) => {
+  return useQuery({
+    queryKey: queryKeys.ratingPlans.byRatingPlanId(id),
+    queryFn: () => ratingPlansApi.findByRatingPlanId(id),
+    enabled: !!id,
+    staleTime: 60_000,
+  });
+};

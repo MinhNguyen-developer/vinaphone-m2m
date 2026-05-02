@@ -4,17 +4,12 @@ import type { TablePaginationConfig } from "antd";
 import { TeamOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import debounce from "lodash/debounce";
-import type { QueryGroupMembersParams, SimGroupMember } from "../../types";
+import type { QueryGroupMembersParams, SimCard } from "../../types";
 import { useSimGroupMembers } from "../../hooks/useSims";
+import { VIN_STATUS_OPTIONS } from "../../utils/constants";
+import formatNumber from "../../utils/formatNumber";
 
 const { Text } = Typography;
-
-const STATUS_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: "Mới", color: "default" },
-  2: { label: "Hoạt động", color: "green" },
-  3: { label: "Tạm khoá", color: "orange" },
-  4: { label: "Huỷ", color: "red" },
-};
 
 interface Props {
   groupId: string | null;
@@ -22,19 +17,24 @@ interface Props {
   onClose: () => void;
 }
 
-const columns: ColumnsType<SimGroupMember> = [
+const columns: ColumnsType<SimCard> = [
   {
     title: "Số điện thoại",
-    dataIndex: "msisdn",
-    key: "msisdn",
+    dataIndex: "phoneNumber",
+    key: "phoneNumber",
     render: (v) => <Text strong>{v}</Text>,
   },
   {
-    title: "Gói cước",
-    dataIndex: "ratingPlanName",
-    key: "ratingPlan",
+    title: "Dung lượng",
+    dataIndex: "usedMB",
+    key: "usedMB",
+    sorter: (a, b) => (a.usedMB ?? 0) - (b.usedMB ?? 0),
     render: (v) =>
-      v ? <Tag color="blue">{v}</Tag> : <Text type="secondary">—</Text>,
+      v != null ? (
+        <Text style={{ fontSize: 11 }}>{formatNumber(v)} MB</Text>
+      ) : (
+        <Text type="secondary">—</Text>
+      ),
   },
   {
     title: "Trạng thái",
@@ -42,8 +42,14 @@ const columns: ColumnsType<SimGroupMember> = [
     key: "status",
     render: (v) => {
       if (v == null) return <Text type="secondary">—</Text>;
-      const s = STATUS_LABELS[v as number];
-      return s ? <Tag color={s.color}>{s.label}</Tag> : <Tag>{v}</Tag>;
+      const s = VIN_STATUS_OPTIONS.find((o) => o.value === v);
+      return s ? (
+        <Tag color={s.color} icon={s.icon}>
+          {s.label}
+        </Tag>
+      ) : (
+        <Tag>{v}</Tag>
+      );
     },
   },
 ];
@@ -129,7 +135,7 @@ const SimGroupMembersModal: React.FC<Props> = ({
           <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
             {data?.total} thành viên trong nhóm này
           </Text>
-          <Table
+          <Table<SimCard>
             dataSource={data?.data}
             columns={columns}
             rowKey={(r) => r.id}

@@ -8,6 +8,16 @@ import type {
 import { queryKeys } from "./queryKeys";
 
 /**
+ * All SIMs without pagination – for Transfer/picker components.
+ */
+export const useAllSims = () =>
+  useQuery({
+    queryKey: queryKeys.sims.allItems,
+    queryFn: () => simsApi.getAll(),
+    staleTime: 60_000,
+  });
+
+/**
  * Paginated SIM list with optional filters.
  * Falls back to empty data on network error so the page still renders.
  */
@@ -50,6 +60,21 @@ export const useUpdateSimStatus = () => {
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: "confirm" | "reset" }) =>
       simsApi.updateStatus(id, action),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+export const useUpdateManySimStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      ids,
+      action,
+    }: {
+      ids: string[];
+      action: "confirm" | "reset";
+    }) => simsApi.batchUpdateStatus(ids, action),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
     },
