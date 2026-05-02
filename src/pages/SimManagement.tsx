@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Table,
   Select,
@@ -11,6 +11,9 @@ import {
   message,
   DatePicker,
   Badge,
+  Modal,
+  Checkbox,
+  Divider,
 } from "antd";
 import {
   SearchOutlined,
@@ -27,11 +30,10 @@ import type {
 
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
-import type { SimCard } from "../types";
-import { useSims } from "../hooks/useSims";
+import type { SimCard, SimGroup } from "../types";
+import { useSims, useUpdateManySimStatus } from "../hooks/useSims";
 import { useAlerts, useTriggeredAlerts } from "../hooks/useAlerts";
 import { formatMB, getUsageColor } from "../utils";
-import SimStatusBadge from "../components/SIM/SimStatusBadge";
 import SimMasterMembersModal from "../components/SIM/SimMasterMembersModal";
 import SimGroupMembersModal from "../components/SIM/SimGroupMembersModal";
 import { useRatingPlans } from "../hooks/useRatingPlans";
@@ -41,6 +43,12 @@ import { useGroupSims } from "../hooks/useGroupSims";
 import { DebouncedInput } from "../components/DebouncedInput";
 import { CustomTableFilter } from "../components/CustomTableFilter";
 import { SyncPanel } from "../components/SyncPanel";
+import { VIN_STATUS_OPTIONS } from "../utils/constants";
+import { ServerSelect } from "../components/ServerSelect";
+import { queryKeys } from "../hooks/queryKeys";
+import { groupsApi } from "../api/groups.api";
+import { ratingPlansApi } from "../api/rating-plans.api";
+import usePagination from "../hooks/usePagination";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -50,65 +58,43 @@ const { RangePicker } = DatePicker;
 const ALL_COLUMN_KEYS = [
   "phone",
   "imsi",
-  "iccid",
   "groupName",
   "contract",
-  "contractInfo",
   "ratingPlan",
   "sogMembership",
   "sogMembers",
-  "customer",
-  "customerCode",
-  "province",
-  "status",
-  "vinStatus",
-  "connection",
   "usedMB",
   "activated",
-  "simType",
-  "apn",
-  "ip",
-  "imei",
   "note",
+  "status",
+  "simGroups",
 ] as const;
 type ColumnKey = (typeof ALL_COLUMN_KEYS)[number];
 
 const COLUMN_LABELS: Record<ColumnKey, string> = {
   phone: "Số điện thoại",
   imsi: "IMSI",
-  iccid: "ICCID",
   groupName: "Nhóm thuê bao",
   contract: "Mã hợp đồng",
-  contractInfo: "Người làm hợp đồng",
   ratingPlan: "Gói cước",
   sogMembership: "Loại gói cước",
   sogMembers: "Thuê bao thành viên",
-  customer: "Khách hàng",
-  customerCode: "Mã KH",
-  province: "Tỉnh/TP",
-  status: "Trạng thái (QL)",
-  vinStatus: "Trạng thái (VTN)",
-  connection: "Kết nối",
   usedMB: "Dung lượng",
   activated: "Kích hoạt",
-  simType: "Loại SIM",
-  apn: "APN",
-  ip: "IP",
-  imei: "IMEI",
   note: "Ghi chú",
+  status: "Trạng thái",
+  simGroups: "Nhóm thiết bị",
 };
 
 const DEFAULT_VISIBLE: ColumnKey[] = [
   "phone",
   "imsi",
+  "groupName",
+  "simGroups",
   "contract",
   "ratingPlan",
   "sogMembership",
   "sogMembers",
-  "customer",
-  "status",
-  "vinStatus",
-  "connection",
   "usedMB",
   "activated",
 ];
@@ -122,15 +108,14 @@ const ALL_FILTER_KEYS = [
   "msisdn",
   "imsi",
   "contractCode",
-  "contractor",
-  "customer",
-  "provinceCode",
   "ratingPlanId",
   "status",
   "simType",
   "dateRange",
   "groupName",
   "sort",
+  "sogIsOwner",
+  "groupId",
 ] as const;
 type FilterKey = (typeof ALL_FILTER_KEYS)[number];
 
@@ -141,48 +126,140 @@ const VISIBLE_FILTER_KEYS = ALL_FILTER_KEYS.filter(
 
 // ─── Export ───────────────────────────────────────────────────────────────
 
-const exportXLSX = (data: SimCard[], filename: string) => {
-  const rows = data.map((s) => ({
-    "Số điện thoại": s.phoneNumber,
-    IMSI: s.imsi ?? "",
-    ICCID: s.iccid ?? "",
-    "Mã hợp đồng": s.contractCode ?? "",
-    "Gói cước": s.ratingPlanName ?? s.productCode,
-    "Khách hàng": s.customerName ?? "",
-    "Mã KH": s.customerCode ?? "",
-    "Tỉnh/TP": s.provinceCode ?? "",
-    "Trạng thái (QL)": s.status,
-    "Trạng thái (VTN)": s.vinaphoneStatus ?? "",
-    "Kết nối": s.connectionStatus ?? "",
-    "Dung lượng (MB)": s.usedMB,
-    "Kích hoạt": s.activatedDate ?? s.firstUsedAt ?? "",
-    "Loại SIM": s.simType ?? "",
-    "Ghi chú": s.note ?? "",
-  }));
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "SIM");
-  XLSX.writeFile(wb, filename);
-  message.success(`Đã xuất ${data.length} SIM → ${filename}`);
-};
+interface ExportColumn {
+  key: string;
+  label: string;
+  getValue: (s: SimCard) => string | number;
+}
 
-// ─── Status options ───────────────────────────────────────────────────────
+const ALL_EXPORT_COLUMNS: ExportColumn[] = ALL_COLUMN_KEYS.map((key) => {
+  const label = COLUMN_LABELS[key];
+  const getValue = (s: SimCard): string | number => {
+    switch (key) {
+      case "phone":
+        return s.phoneNumber;
+      case "imsi":
+        return s.imsi ?? "";
+      case "groupName":
+        return s.groupName ?? "";
+      case "contract":
+        return s.contractCode ?? "";
+      case "ratingPlan":
+        return s.ratingPlanName ?? s.productCode;
+      case "sogMembership":
+        if (s.sogIsOwner == null) return "";
+        return s.sogIsOwner ? "Chủ nhóm" : "Thành viên";
+      case "sogMembers":
+        return s.sogGroupId && s.sogIsOwner
+          ? (s.sogGroupName ?? s.sogGroupId)
+          : "";
+      case "usedMB":
+        return s.usedMB;
+      case "activated":
+        return s.activatedDate ?? s.firstUsedAt ?? "";
+      case "note":
+        return s.note ?? "";
+      case "status":
+        return (
+          VIN_STATUS_OPTIONS.find((o) => o.value === s.status)?.label ??
+          s.status
+        );
+      case "simGroups":
+        return (s.simGroups ?? [])
+          .map((g) => g.group?.name)
+          .filter(Boolean)
+          .join(", ");
+    }
+  };
+  return { key, label, getValue };
+});
 
-const VIN_STATUS_OPTIONS = [
-  { value: "1", label: "Mới" },
-  { value: "2", label: "Đang hoạt động" },
-  { value: "3", label: "Tạm khoá" },
-  { value: "4", label: "Huỷ" },
+const DEFAULT_EXPORT_KEYS: ColumnKey[] = [
+  "phone",
+  "imsi",
+  "contract",
+  "ratingPlan",
+  "status",
+  "usedMB",
 ];
+
+interface ExportModalProps {
+  open: boolean;
+  data: SimCard[];
+  onClose: () => void;
+}
+
+const ExportModal: React.FC<ExportModalProps> = ({ open, data, onClose }) => {
+  const [selected, setSelected] = useState<ColumnKey[]>(DEFAULT_EXPORT_KEYS);
+
+  const allKeys = ALL_EXPORT_COLUMNS.map((c) => c.key as ColumnKey);
+  const allChecked = selected.length === allKeys.length;
+  const indeterminate = selected.length > 0 && !allChecked;
+
+  const handleExport = () => {
+    if (selected.length === 0) {
+      message.warning("Vui lòng chọn ít nhất 1 cột!");
+      return;
+    }
+    const cols = ALL_EXPORT_COLUMNS.filter((c) =>
+      selected.includes(c.key as ColumnKey),
+    );
+    const rows = data.map((s) =>
+      Object.fromEntries(cols.map((c) => [c.label, c.getValue(s)])),
+    );
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "SIM");
+    const filename = `sim-m2m-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    message.success(`Đã xuất ${data.length} SIM → ${filename}`);
+    onClose();
+  };
+
+  return (
+    <Modal
+      title={`Xuất Excel — ${data.length} SIM`}
+      open={open}
+      onOk={handleExport}
+      onCancel={onClose}
+      okText="Xuất"
+      cancelText="Huỷ"
+      width={480}
+    >
+      <Divider plain style={{ marginTop: 0 }}>
+        Chọn cột xuất
+      </Divider>
+      <Checkbox
+        indeterminate={indeterminate}
+        checked={allChecked}
+        onChange={(e) => setSelected(e.target.checked ? allKeys : [])}
+        style={{ marginBottom: 8, fontWeight: 600 }}
+      >
+        Chọn tất cả
+      </Checkbox>
+      <Checkbox.Group
+        value={selected}
+        onChange={(vals) => setSelected(vals as ColumnKey[])}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "6px 0",
+        }}
+        options={ALL_EXPORT_COLUMNS.map((c) => ({
+          label: c.label,
+          value: c.key,
+        }))}
+      />
+    </Modal>
+  );
+};
 
 // ─── Component ────────────────────────────────────────────────────────────
 
 const SimManagement: React.FC = () => {
-  const [pagination, setPagination] = useState<TablePaginationConfig>({
+  const [pagination, setPagination] = usePagination({
     pageSize: 10,
     current: 1,
-    pageSizeOptions: ["10", "20", "50", "100"],
-    showSizeChanger: true,
   });
 
   const handleTableChange = (
@@ -283,62 +360,23 @@ const SimManagement: React.FC = () => {
         ),
       },
       {
-        filterKey: "contractor",
-        label: "Người ký HĐ",
-
-        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
-        render: (value, onChange) => (
-          <DebouncedInput
-            placeholder="Người ký HĐ"
-            value={(value as string) ?? ""}
-            onChange={onChange}
-          />
-        ),
-      },
-      {
-        filterKey: "customer",
-        label: "Khách hàng",
-
-        colSpan: { xs: 24, sm: 12, md: 5, lg: 4 },
-        render: (value, onChange) => (
-          <DebouncedInput
-            placeholder="Khách hàng"
-            value={(value as string) ?? ""}
-            onChange={onChange}
-          />
-        ),
-      },
-      {
-        filterKey: "provinceCode",
-        label: "Tỉnh/TP",
-
-        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
-        render: (value, onChange) => (
-          <DebouncedInput
-            placeholder="Tỉnh/TP"
-            value={(value as string) ?? ""}
-            onChange={onChange}
-          />
-        ),
-      },
-      {
         filterKey: "ratingPlanId",
         label: "Gói cước",
         colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
         render: (value, onChange) => (
-          <Select
+          <ServerSelect
+            queryKey={queryKeys.ratingPlans.list()}
             placeholder="Gói cước"
             value={(value as string) || undefined}
             popupMatchSelectWidth={200}
+            fetchFn={({ page, pageSize, search }) =>
+              ratingPlansApi.getList({ page, pageSize, search })
+            }
             onChange={(v) => onChange(v)}
             allowClear
             style={{ width: "100%" }}
-            options={
-              ratingPlansData?.data.map((rp) => ({
-                label: `${rp.name} - (${rp.code})`,
-                value: rp.ratingPlanId,
-              })) ?? []
-            }
+            getOptionValue={(rp) => String(rp.ratingPlanId)}
+            getOptionLabel={(rp) => `${rp.name} - (${rp.code})`}
           />
         ),
         toUrlParams: (v) => ({
@@ -367,30 +405,62 @@ const SimManagement: React.FC = () => {
         fromUrlParams: (p) => p.get("status") ?? undefined,
       },
       {
-        filterKey: "simType",
-        label: "Loại SIM",
+        filterKey: "sogIsOwner",
+        label: "Thuê bao thành viên",
         colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
         render: (value, onChange) => (
           <Select
             style={{ width: "100%" }}
-            value={value}
+            value={Number.isNaN(+value) ? value : Number(value)}
             onChange={(v) => onChange(v)}
-            placeholder="Loại SIM"
+            placeholder="Thuê bao thành viên"
             allowClear
             options={[
               {
-                label: "Sim M2M",
-                value: "0",
+                label: "Chủ nhóm",
+                value: 1,
               },
               {
-                label: "eSIM",
-                value: "1",
+                label: "Thành viên",
+                value: 0,
               },
             ]}
           />
         ),
-        toUrlParams: (v) => ({ simType: v != null ? String(v) : undefined }),
-        fromUrlParams: (p) => p.get("simType") ?? undefined,
+        toUrlParams: (v) => ({ sogIsOwner: v != null ? String(v) : undefined }),
+        fromUrlParams: (p) => p.get("sogIsOwner") ?? undefined,
+      },
+      {
+        filterKey: "groupId",
+        label: "Nhóm thiết bị",
+        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
+        render: (value, onChange) => (
+          <ServerSelect
+            queryKey={queryKeys.groups.all}
+            fetchFn={({ page, pageSize, search }) =>
+              groupsApi.getList({ page, pageSize, search })
+            }
+            placeholder="Nhóm thiết bị"
+            getOptionValue={(g) => g.id}
+            getOptionLabel={(g) => g.name}
+            mode="multiple"
+            style={{
+              minWidth: 160,
+            }}
+            value={value}
+            onChange={(v) => onChange(v)}
+          />
+        ),
+        toUrlParams: (v) => {
+          const arr = v as string[] | undefined;
+          if (!arr?.length) return { groupId: undefined };
+          return { groupId: arr.join(",") };
+        },
+        fromUrlParams: (p) => {
+          const raw = p.get("groupId");
+          if (!raw) return undefined;
+          return raw.split(",");
+        },
       },
       {
         filterKey: "dateRange",
@@ -437,6 +507,16 @@ const SimManagement: React.FC = () => {
       defaultVisibleKeys: VISIBLE_FILTER_KEYS,
     });
 
+  // ── Reset to page 1 when non-sort filters change ──────────────────────
+  const nonSortFilterKey = JSON.stringify(
+    Object.fromEntries(
+      Object.entries(filterValues).filter(([k]) => k !== "sort"),
+    ),
+  );
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, current: 1 }));
+  }, [nonSortFilterKey]);
+
   // ── Data fetching ─────────────────────────────────────────────────────
   const queryParams = useMemo(() => {
     const toNum = (v: unknown) => {
@@ -452,10 +532,7 @@ const SimManagement: React.FC = () => {
       msisdn: (filterValues.msisdn as string) || undefined,
       imsi: (filterValues.imsi as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
-      contractor: (filterValues.contractor as string) || undefined,
-      customer: (filterValues.customer as string) || undefined,
       status: toNum(filterValues.status),
-      provinceCode: (filterValues.provinceCode as string) || undefined,
       ratingPlanId: toNum(filterValues.ratingPlanId),
       simType: toNum(filterValues.simType),
       dateFrom: dr[0]?.format("YYYY-MM-DD"),
@@ -463,6 +540,8 @@ const SimManagement: React.FC = () => {
       pageSize: pagination.pageSize,
       page: pagination.current,
       groupName: (filterValues.groupName as string) || undefined,
+      groupId: filterValues.groupId as string,
+      sogIsOwner: toNum(filterValues.sogIsOwner),
       sort: (filterValues.sort as string) || undefined,
     };
   }, [filterValues, pagination]);
@@ -473,7 +552,7 @@ const SimManagement: React.FC = () => {
     isFetching,
     isRefetching,
   } = useSims(queryParams);
-  const alerts = useAlerts().data ?? [];
+  const { data: alertsData } = useAlerts();
   const { data: triggeredData } = useTriggeredAlerts();
 
   const sims = simsData?.data ?? [];
@@ -488,6 +567,8 @@ const SimManagement: React.FC = () => {
     triggeredData?.data.forEach((t) => ids.add(t.sim.id));
     return ids;
   }, [triggeredData]);
+
+  const { mutate } = useUpdateManySimStatus();
 
   // ── Column definitions ────────────────────────────────────────────────
   const allColumns: (ColumnsType<SimCard>[number] & { colKey: ColumnKey })[] = [
@@ -544,21 +625,12 @@ const SimManagement: React.FC = () => {
         ) : (
           <Text type="secondary">—</Text>
         ),
-    },
-    {
-      colKey: "iccid",
-      title: "ICCID",
-      dataIndex: "iccid",
-      key: "iccid",
-      width: 155,
-      render: (v) =>
-        v ? (
-          <Text code style={{ fontSize: 11 }}>
-            {v}
-          </Text>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("imsi:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
     },
     {
       colKey: "groupName",
@@ -568,21 +640,52 @@ const SimManagement: React.FC = () => {
       width: 180,
       render: (v) =>
         v ? <Tag color="purple">{v}</Tag> : <Text type="secondary">—</Text>,
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("groupName:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
+    },
+    {
+      colKey: "simGroups",
+      title: "Nhóm thiết bị",
+      dataIndex: "simGroups",
+      key: "simGroups",
+      width: 180,
+      render: (v: SimGroup[] | undefined) =>
+        v ? (
+          <Space>
+            {v.map((g) => (
+              <Tag color="purple" key={g.group?.id}>
+                {g.group?.name}
+              </Tag>
+            ))}
+          </Space>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
     },
     {
       colKey: "contract",
       title: "Mã hợp đồng",
       dataIndex: "contractCode",
-      key: "contract",
+      key: "contractCode",
       width: 160,
       render: (v) =>
         v ? <Tag color="geekblue">{v}</Tag> : <Text type="secondary">—</Text>,
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("contractCode:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
     },
     {
       colKey: "ratingPlan",
       title: "Gói cước",
       dataIndex: "ratingPlanName",
-      key: "ratingPlan",
+      key: "ratingPlanName",
       width: 190,
       render: (v, r) =>
         (v ?? r.productCode) ? (
@@ -590,86 +693,12 @@ const SimManagement: React.FC = () => {
         ) : (
           <Text type="secondary">—</Text>
         ),
-    },
-    {
-      colKey: "customer",
-      title: "Khách hàng",
-      dataIndex: "customerName",
-      key: "customer",
-      width: 200,
-      ellipsis: true,
-      render: (v) => v ?? <Text type="secondary">—</Text>,
-    },
-    {
-      colKey: "customerCode",
-      title: "Mã KH",
-      dataIndex: "customerCode",
-      key: "customerCode",
-      width: 140,
-      render: (v) => v ?? <Text type="secondary">—</Text>,
-    },
-    {
-      colKey: "contractInfo",
-      title: "Người làm hợp đồng",
-      dataIndex: "contractInfo",
-      key: "contractInfo",
-      width: 200,
-      render: (v) => <Text>{v ?? "—"}</Text>,
-    },
-    {
-      colKey: "province",
-      title: "Tỉnh/TP",
-      dataIndex: "provinceCode",
-      key: "province",
-      width: 80,
-      render: (v) => v ?? <Text type="secondary">—</Text>,
-    },
-    {
-      colKey: "status",
-      title: "Trạng thái (QL)",
-      dataIndex: "status",
-      key: "status",
-      width: 150,
-      render: (v) => <SimStatusBadge status={v} />,
-    },
-    {
-      colKey: "vinStatus",
-      title: "Trạng thái (VTN)",
-      dataIndex: "vinaphoneStatus",
-      key: "vinStatus",
-      width: 145,
-      render: (v) => {
-        if (v == null) return <Text type="secondary">—</Text>;
-        const colors: Record<number, string> = {
-          1: "default",
-          2: "green",
-          3: "orange",
-          4: "red",
-        };
-        const labels: Record<number, string> = {
-          1: "Mới",
-          2: "Hoạt động",
-          3: "Tạm khoá",
-          4: "Huỷ",
-        };
-        return (
-          <Tag color={colors[v as number] ?? "default"}>
-            {labels[v as number] ?? v}
-          </Tag>
-        );
-      },
-    },
-    {
-      colKey: "connection",
-      title: "Kết nối",
-      dataIndex: "connectionStatus",
-      key: "connection",
-      width: 100,
-      render: (v) => {
-        if (!v) return <Text type="secondary">—</Text>;
-        const color = v === "ON" ? "green" : v === "OFF" ? "red" : "default";
-        return <Tag color={color}>{v}</Tag>;
-      },
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("ratingPlanName:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
     },
     {
       colKey: "usedMB",
@@ -684,7 +713,7 @@ const SimManagement: React.FC = () => {
           : "descend"
         : null,
       render: (v, record) => {
-        const relevantAlerts = alerts.filter(
+        const relevantAlerts = (alertsData?.data || []).filter(
           (a) =>
             a.active &&
             (a.simId === record.id ||
@@ -692,7 +721,7 @@ const SimManagement: React.FC = () => {
               (a.productCode && a.productCode === record.productCode)),
         );
         const maxThreshold = relevantAlerts.length
-          ? Math.max(...relevantAlerts.map((a) => a.thresholdMB))
+          ? Math.max(...relevantAlerts?.map((a) => a.thresholdMB))
           : 0;
         const pct =
           maxThreshold > 0
@@ -704,8 +733,8 @@ const SimManagement: React.FC = () => {
     {
       colKey: "activated",
       title: "Kích hoạt",
-      dataIndex: "activatedDate",
-      key: "activated",
+      dataIndex: "firstUsedAt",
+      key: "firstUsedAt",
       width: 145,
       render: (v, r) => {
         const d = v ?? r.firstUsedAt;
@@ -715,63 +744,34 @@ const SimManagement: React.FC = () => {
           <Text type="secondary">Chưa có</Text>
         );
       },
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("firstUsedAt:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
     },
     {
-      colKey: "simType",
-      title: "Loại SIM",
-      dataIndex: "simType",
-      key: "simType",
-      width: 90,
-      render: (v) =>
-        v != null ? (
-          <Tag>{v === 0 ? "M2M" : "eSIM"}</Tag>
+      colKey: "status",
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      width: 145,
+      render: (v) => {
+        const s = VIN_STATUS_OPTIONS.find((o) => o.value === v);
+        return s ? (
+          <Tag color={s.color} icon={s.icon}>
+            {s.label}
+          </Tag>
         ) : (
-          <Text type="secondary">—</Text>
-        ),
-    },
-    {
-      colKey: "apn",
-      title: "APN",
-      dataIndex: "apnName",
-      key: "apn",
-      width: 110,
-      render: (v) => v ?? <Text type="secondary">—</Text>,
-    },
-    {
-      colKey: "ip",
-      title: "IP",
-      dataIndex: "ip",
-      key: "ip",
-      width: 120,
-      render: (v) => v ?? <Text type="secondary">—</Text>,
-    },
-    {
-      colKey: "imei",
-      title: "IMEI",
-      dataIndex: "imei",
-      key: "imei",
-      width: 155,
-      render: (v) =>
-        v ? (
-          <Text code style={{ fontSize: 11 }}>
-            {v}
-          </Text>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
-    },
-    {
-      colKey: "note",
-      title: "Ghi chú",
-      dataIndex: "note",
-      key: "note",
-      width: 150,
-      render: (v) => v ?? <Text type="secondary">—</Text>,
+          <Text>{v}</Text>
+        );
+      },
     },
     {
       colKey: "sogMembership",
       title: "Loại gói cước",
-      key: "sogMembership",
+      key: "sogIsOwner",
       width: 140,
       render: (_v, record) => {
         if (record.sogIsOwner == null) return <Text type="secondary">—</Text>;
@@ -804,6 +804,14 @@ const SimManagement: React.FC = () => {
         );
       },
     },
+    {
+      colKey: "note",
+      title: "Ghi chú",
+      dataIndex: "note",
+      key: "note",
+      width: 150,
+      render: (v) => v ?? <Text type="secondary">—</Text>,
+    },
   ];
 
   const { tableColumns: columns, popover: columnPickerButton } = useColumns({
@@ -820,6 +828,9 @@ const SimManagement: React.FC = () => {
     onChange: (keys) => setSelectedRowKeys(keys),
   };
 
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportData, setExportData] = useState<SimCard[]>([]);
+
   const handleExport = (exportAll: boolean) => {
     if (!exportAll && selectedRowKeys.length === 0) {
       message.warning("Vui lòng tích chọn ít nhất 1 SIM!");
@@ -828,7 +839,8 @@ const SimManagement: React.FC = () => {
     const data = exportAll
       ? sims
       : sims.filter((s) => selectedRowKeys.includes(s.id));
-    exportXLSX(data, `sim-m2m-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setExportData(data);
+    setExportModalOpen(true);
   };
 
   // ── Column picker popover ─────────────────────────────────────────────
@@ -875,22 +887,38 @@ const SimManagement: React.FC = () => {
         </Space>
       </div>
 
-      <SyncPanel />
+      {import.meta.env.DEV && <SyncPanel />}
 
       {/* Filters */}
       <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
 
       {/* Table */}
       <Card>
-        <Text style={{ display: "block", marginBottom: 10 }}>
-          Hiển thị <strong>{sims.length}</strong> /{" "}
-          {simsData?.total ?? sims.length} SIM
-          {selectedRowKeys.length > 0 && (
-            <Tag color="blue" style={{ marginLeft: 10 }}>
-              Đang chọn {selectedRowKeys.length}
-            </Tag>
+        <Space wrap align="baseline">
+          <Text style={{ display: "block", marginBottom: 10 }}>
+            Hiển thị <strong>{sims.length}</strong> /{" "}
+            {simsData?.total ?? sims.length} SIM
+            {selectedRowKeys.length > 0 && (
+              <Tag color="blue" style={{ marginLeft: 10 }}>
+                Đang chọn {selectedRowKeys.length}
+              </Tag>
+            )}
+          </Text>
+          {!!selectedRowKeys.length && (
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => {
+                mutate({
+                  ids: selectedRowKeys as string[],
+                  action: "confirm",
+                });
+              }}
+            >
+              Xác nhận
+            </Button>
           )}
-        </Text>
+        </Space>
         <Table
           dataSource={sims}
           columns={columns}
@@ -920,6 +948,11 @@ const SimManagement: React.FC = () => {
           setGroupModalId(null);
           setGroupModalName(null);
         }}
+      />
+      <ExportModal
+        open={exportModalOpen}
+        data={exportData}
+        onClose={() => setExportModalOpen(false)}
       />
     </div>
   );

@@ -1,24 +1,36 @@
-import type { MasterSimWithRemaining, PaginatedResponse, SimCard } from '../types';
-import { apiClient } from './client';
+import type {
+  MasterSim,
+  PaginatedResponse,
+  QueryMasterSimParams,
+  SimCard,
+} from "../types";
+import { apiClient } from "./client";
 
 export const masterSimsApi = {
   /**
-   * GET /master-sims – list with remainingMB computed server-side
+   * GET /master-sims – list of SimGroupMembers
    */
-  getList: async (): Promise<{ data: MasterSimWithRemaining[] }> => {
-    const res = await apiClient.get<{ data: MasterSimWithRemaining[] }>('/master-sims');
+  getList: async (
+    params?: QueryMasterSimParams,
+  ): Promise<PaginatedResponse<SimCard>> => {
+    const res = await apiClient.get<PaginatedResponse<SimCard>>(
+      "/master-sims",
+      {
+        params,
+      },
+    );
     return res.data;
   },
 
   /**
-   * GET /master-sims/:code/members – paginated member SIMs
+   * GET /master-sims/:groupId/members – paginated members of a group
    */
   getMembers: async (
-    code: string,
+    groupId: string,
     params?: { page?: number; pageSize?: number },
-  ): Promise<PaginatedResponse<SimCard>> => {
-    const res = await apiClient.get<PaginatedResponse<SimCard>>(
-      `/master-sims/${code}/members`,
+  ): Promise<PaginatedResponse<MasterSim>> => {
+    const res = await apiClient.get<PaginatedResponse<MasterSim>>(
+      `/master-sims/${groupId}/members`,
       { params },
     );
     return res.data;

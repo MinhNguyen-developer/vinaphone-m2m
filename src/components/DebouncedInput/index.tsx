@@ -1,14 +1,14 @@
 import { Input } from "antd";
 import { useEffect, useState } from "react";
+import type { InputProps } from "antd/es/input";
 
-export const DebouncedInput: React.FC<{
+interface DebouncedInputProps extends Omit<InputProps, "onChange" | "value"> {
   value: string;
   onChange: (v: string) => void;
-  placeholder?: string;
-  prefix?: React.ReactNode;
   delay?: number;
-  style?: React.CSSProperties;
-}> = ({
+}
+
+export const DebouncedInput: React.FC<DebouncedInputProps> = ({
   value: externalValue,
   onChange,
   placeholder,

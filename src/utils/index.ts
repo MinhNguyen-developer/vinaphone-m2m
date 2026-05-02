@@ -20,11 +20,26 @@ export function getUsagePercent(usedMB: number, thresholdMB: number): number {
  * Get color based on usage percentage
  */
 export function getUsageColor(percent: number): string {
-  if (percent >= 90) return '#ff4d4f';
-  if (percent >= 70) return '#faad14';
-  return '#52c41a';
+  if (percent >= 90) return "#ff4d4f";
+  if (percent >= 70) return "#faad14";
+  return "#52c41a";
 }
 
+/**
+ * Get sim status color
+ */
+export function getSimStatusColor(status: number): string {
+  switch (status) {
+    case 1: // Mới
+      return "#1890ff";
+    case 2: // Đang hoạt động
+      return "#52c41a";
+    case 3: // Đã xác nhận
+      return "#faad14";
+    default:
+      return "#d9d9d9";
+  }
+}
 /**
  * Generate a unique ID
  */
@@ -44,5 +59,5 @@ export function bytesToMB(bytes: number): number {
  */
 export function getCurrentMonth(): string {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
