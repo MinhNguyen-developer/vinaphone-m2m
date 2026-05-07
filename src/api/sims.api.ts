@@ -31,6 +31,14 @@ export const simsApi = {
   },
 
   /**
+   * GET /sims/:id – full SIM detail with monthlyDataUsages + simGroups
+   */
+  getDetail: async (id: string): Promise<SimCard> => {
+    const res = await apiClient.get<SimCard>(`/sims/${id}`);
+    return res.data;
+  },
+
+  /**
    * PATCH /sims/:id/status
    * action: "confirm" | "reset"
    */

@@ -18,6 +18,17 @@ export const useAllSims = () =>
   });
 
 /**
+ * Full detail for a single SIM (includes monthlyDataUsages + simGroups).
+ */
+export const useSimDetail = (id: string | null) =>
+  useQuery({
+    queryKey: queryKeys.sims.detail(id ?? ""),
+    queryFn: () => simsApi.getDetail(id!),
+    enabled: !!id,
+    staleTime: 30_000,
+  });
+
+/**
  * Paginated SIM list with optional filters.
  * Falls back to empty data on network error so the page still renders.
  */

@@ -1,5 +1,4 @@
 import type {
-  MasterSim,
   PaginatedResponse,
   QueryMasterSimParams,
   SimCard,
@@ -28,8 +27,8 @@ export const masterSimsApi = {
   getMembers: async (
     groupId: string,
     params?: { page?: number; pageSize?: number },
-  ): Promise<PaginatedResponse<MasterSim>> => {
-    const res = await apiClient.get<PaginatedResponse<MasterSim>>(
+  ): Promise<PaginatedResponse<SimCard>> => {
+    const res = await apiClient.get<PaginatedResponse<SimCard>>(
       `/master-sims/${groupId}/members`,
       { params },
     );

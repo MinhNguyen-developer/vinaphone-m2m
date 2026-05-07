@@ -315,6 +315,7 @@ const AlertManagement: React.FC = () => {
                 showSearch={{
                   optionFilterProp: "label",
                 }}
+                allowClear
                 getOptionLabel={(rp) => rp.name + `(${rp.code})`}
                 getOptionValue={(rp) => rp.ratingPlanId}
               />

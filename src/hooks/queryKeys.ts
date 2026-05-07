@@ -15,6 +15,7 @@ export const queryKeys = {
     all: ["sims"] as const,
     allItems: ["sims", "all-items"] as const,
     list: (params?: SimListParams) => ["sims", "list", params ?? {}] as const,
+    detail: (id: string) => ["sims", "detail", id] as const,
     usageHistory: (phoneNumber: string, params?: UsageHistoryParams) =>
       ["sims", phoneNumber, "usage-history", params ?? {}] as const,
   },

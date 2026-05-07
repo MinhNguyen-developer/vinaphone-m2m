@@ -558,7 +558,7 @@ const SimManagement: React.FC = () => {
   const sims = simsData?.data ?? [];
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [modalSim, setModalSim] = useState<SimCard | null>(null);
+  const [modalSimId, setModalSimId] = useState<string | null>(null);
   const [groupModalId, setGroupModalId] = useState<string | null>(null);
   const [groupModalName, setGroupModalName] = useState<string | null>(null);
 
@@ -591,7 +591,7 @@ const SimManagement: React.FC = () => {
           <Text
             strong
             style={{ color: "#1677ff", cursor: "pointer" }}
-            onClick={() => setModalSim(record)}
+            onClick={() => setModalSimId(record.id)}
           >
             {v}
           </Text>
@@ -940,7 +940,10 @@ const SimManagement: React.FC = () => {
         .row-alert:hover td { background-color: #ffe7e7 !important; }
       `}</style>
 
-      <SimMasterMembersModal sim={modalSim} onClose={() => setModalSim(null)} />
+      <SimMasterMembersModal
+        simId={modalSimId}
+        onClose={() => setModalSimId(null)}
+      />
       <SimGroupMembersModal
         groupId={groupModalId}
         groupName={groupModalName}

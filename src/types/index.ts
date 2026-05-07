@@ -203,6 +203,7 @@ export interface QueryPaginatedparams {
 
 export interface QueryGroupMembersParams extends QueryPaginatedparams {
   msisdn?: string;
+  sort?: string;
 }
 
 export interface QueryGroupDevicesParams extends QueryPaginatedparams {

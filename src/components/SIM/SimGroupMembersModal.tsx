@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Modal, Table, Tag, Typography, Spin, Space, Input } from "antd";
+import { Modal, Table, Tag, Typography, Space, Input } from "antd";
 import type { TablePaginationConfig } from "antd";
+import type { SorterResult } from "antd/es/table/interface";
 import { TeamOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import debounce from "lodash/debounce";
@@ -28,7 +29,7 @@ const columns: ColumnsType<SimCard> = [
     title: "Dung lượng",
     dataIndex: "usedMB",
     key: "usedMB",
-    sorter: (a, b) => (a.usedMB ?? 0) - (b.usedMB ?? 0),
+    sorter: true,
     render: (v) =>
       v != null ? (
         <Text style={{ fontSize: 11 }}>{formatNumber(v)} MB</Text>
@@ -62,6 +63,7 @@ const SimGroupMembersModal: React.FC<Props> = ({
   // Debounce search input
   const [msisdnFilter, setMsisdnFilter] = useState("");
   const [debouncedFilter, setDebouncedFilter] = useState("");
+  const [sort, setSort] = useState<string | undefined>(undefined);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 10,
@@ -93,6 +95,7 @@ const SimGroupMembersModal: React.FC<Props> = ({
     page: pagination?.current,
     pageSize: pagination?.pageSize,
     msisdn: debouncedFilter,
+    sort,
   };
 
   const { data, isLoading } = useSimGroupMembers(groupId, queryParams);
@@ -114,37 +117,43 @@ const SimGroupMembersModal: React.FC<Props> = ({
         </Space>
       }
     >
-      {isLoading ? (
-        <div style={{ textAlign: "center", padding: 40 }}>
-          <Spin size="large" />
-        </div>
-      ) : (
-        <>
-          <Input
-            placeholder="Tìm số điện thoại..."
-            prefix={<SearchOutlined />}
-            value={msisdnFilter}
-            onChange={handleSearch}
-            onClear={() => {
-              setMsisdnFilter("");
-              applyDebounce("");
-            }}
-            allowClear
-            style={{ marginBottom: 12 }}
-          />
-          <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
-            {data?.total} thành viên trong nhóm này
-          </Text>
-          <Table<SimCard>
-            dataSource={data?.data}
-            columns={columns}
-            rowKey={(r) => r.id}
-            size="small"
-            pagination={{ ...pagination, total: data?.total }}
-            onChange={(pag) => setPagination(pag)}
-          />
-        </>
-      )}
+      <Input
+        placeholder="Tìm số điện thoại..."
+        prefix={<SearchOutlined />}
+        value={msisdnFilter}
+        onChange={handleSearch}
+        onClear={() => {
+          setMsisdnFilter("");
+          applyDebounce("");
+        }}
+        disabled={isLoading}
+        allowClear
+        style={{ marginBottom: 12 }}
+      />
+      <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+        {data?.total} thành viên trong nhóm này
+      </Text>
+      <Table<SimCard>
+        dataSource={data?.data}
+        columns={columns}
+        rowKey={(r) => r.id}
+        loading={isLoading}
+        size="small"
+        pagination={{ ...pagination, total: data?.total }}
+        onChange={(pag, _filters, sorter) => {
+          setPagination(pag);
+          const s = Array.isArray(sorter)
+            ? sorter[0]
+            : (sorter as SorterResult<SimCard>);
+          if (s.columnKey && s.order) {
+            setSort(
+              `${String(s.columnKey)}:${s.order === "ascend" ? "asc" : "desc"}`,
+            );
+          } else {
+            setSort(undefined);
+          }
+        }}
+      />
     </Modal>
   );
 };
