@@ -1,20 +1,16 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Modal, Table, Tag, Typography, Spin, Space, Input } from "antd";
+import { Modal, Table, Tag, Typography, Space, Input } from "antd";
 import type { TablePaginationConfig } from "antd";
+import type { SorterResult } from "antd/es/table/interface";
 import { TeamOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import debounce from "lodash/debounce";
-import type { QueryGroupMembersParams, SimGroupMember } from "../../types";
+import type { QueryGroupMembersParams, SimCard } from "../../types";
 import { useSimGroupMembers } from "../../hooks/useSims";
+import { VIN_STATUS_OPTIONS } from "../../utils/constants";
+import formatNumber from "../../utils/formatNumber";
 
 const { Text } = Typography;
-
-const STATUS_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: "Mới", color: "default" },
-  2: { label: "Hoạt động", color: "green" },
-  3: { label: "Tạm khoá", color: "orange" },
-  4: { label: "Huỷ", color: "red" },
-};
 
 interface Props {
   groupId: string | null;
@@ -22,19 +18,24 @@ interface Props {
   onClose: () => void;
 }
 
-const columns: ColumnsType<SimGroupMember> = [
+const columns: ColumnsType<SimCard> = [
   {
     title: "Số điện thoại",
-    dataIndex: "msisdn",
-    key: "msisdn",
+    dataIndex: "phoneNumber",
+    key: "phoneNumber",
     render: (v) => <Text strong>{v}</Text>,
   },
   {
-    title: "Gói cước",
-    dataIndex: "ratingPlanName",
-    key: "ratingPlan",
+    title: "Dung lượng",
+    dataIndex: "usedMB",
+    key: "usedMB",
+    sorter: true,
     render: (v) =>
-      v ? <Tag color="blue">{v}</Tag> : <Text type="secondary">—</Text>,
+      v != null ? (
+        <Text style={{ fontSize: 11 }}>{formatNumber(v)} MB</Text>
+      ) : (
+        <Text type="secondary">—</Text>
+      ),
   },
   {
     title: "Trạng thái",
@@ -42,8 +43,14 @@ const columns: ColumnsType<SimGroupMember> = [
     key: "status",
     render: (v) => {
       if (v == null) return <Text type="secondary">—</Text>;
-      const s = STATUS_LABELS[v as number];
-      return s ? <Tag color={s.color}>{s.label}</Tag> : <Tag>{v}</Tag>;
+      const s = VIN_STATUS_OPTIONS.find((o) => o.value === v);
+      return s ? (
+        <Tag color={s.color} icon={s.icon}>
+          {s.label}
+        </Tag>
+      ) : (
+        <Tag>{v}</Tag>
+      );
     },
   },
 ];
@@ -56,6 +63,7 @@ const SimGroupMembersModal: React.FC<Props> = ({
   // Debounce search input
   const [msisdnFilter, setMsisdnFilter] = useState("");
   const [debouncedFilter, setDebouncedFilter] = useState("");
+  const [sort, setSort] = useState<string | undefined>(undefined);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 10,
@@ -87,6 +95,7 @@ const SimGroupMembersModal: React.FC<Props> = ({
     page: pagination?.current,
     pageSize: pagination?.pageSize,
     msisdn: debouncedFilter,
+    sort,
   };
 
   const { data, isLoading } = useSimGroupMembers(groupId, queryParams);
@@ -108,37 +117,43 @@ const SimGroupMembersModal: React.FC<Props> = ({
         </Space>
       }
     >
-      {isLoading ? (
-        <div style={{ textAlign: "center", padding: 40 }}>
-          <Spin size="large" />
-        </div>
-      ) : (
-        <>
-          <Input
-            placeholder="Tìm số điện thoại..."
-            prefix={<SearchOutlined />}
-            value={msisdnFilter}
-            onChange={handleSearch}
-            onClear={() => {
-              setMsisdnFilter("");
-              applyDebounce("");
-            }}
-            allowClear
-            style={{ marginBottom: 12 }}
-          />
-          <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
-            {data?.total} thành viên trong nhóm này
-          </Text>
-          <Table
-            dataSource={data?.data}
-            columns={columns}
-            rowKey={(r) => r.id}
-            size="small"
-            pagination={{ ...pagination, total: data?.total }}
-            onChange={(pag) => setPagination(pag)}
-          />
-        </>
-      )}
+      <Input
+        placeholder="Tìm số điện thoại..."
+        prefix={<SearchOutlined />}
+        value={msisdnFilter}
+        onChange={handleSearch}
+        onClear={() => {
+          setMsisdnFilter("");
+          applyDebounce("");
+        }}
+        disabled={isLoading}
+        allowClear
+        style={{ marginBottom: 12 }}
+      />
+      <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+        {data?.total} thành viên trong nhóm này
+      </Text>
+      <Table<SimCard>
+        dataSource={data?.data}
+        columns={columns}
+        rowKey={(r) => r.id}
+        loading={isLoading}
+        size="small"
+        pagination={{ ...pagination, total: data?.total }}
+        onChange={(pag, _filters, sorter) => {
+          setPagination(pag);
+          const s = Array.isArray(sorter)
+            ? sorter[0]
+            : (sorter as SorterResult<SimCard>);
+          if (s.columnKey && s.order) {
+            setSort(
+              `${String(s.columnKey)}:${s.order === "ascend" ? "asc" : "desc"}`,
+            );
+          } else {
+            setSort(undefined);
+          }
+        }}
+      />
     </Modal>
   );
 };

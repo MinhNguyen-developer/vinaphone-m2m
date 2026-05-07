@@ -1,20 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { alertsApi } from '../api/alerts.api';
-import type { TriggeredAlertsResponse } from '../types';
-import { queryKeys } from './queryKeys';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { alertsApi, type AlertFormValues } from "../api/alerts.api";
+import type { QueryAlertParams, TriggeredAlertsResponse } from "../types";
+import { queryKeys } from "./queryKeys";
 
-export const useAlerts = () =>
+export const useAlerts = (params?: QueryAlertParams) =>
   useQuery({
-    queryKey: queryKeys.alerts.list(),
-    queryFn: () => alertsApi.getList(),
+    queryKey: queryKeys.alerts.list(params),
+    queryFn: () => alertsApi.getList(params),
     staleTime: 120_000,
-    select: (res) => res.data,
   });
 
-export const useTriggeredAlerts = (productCode?: string) =>
+export const useTriggeredAlerts = (ratingPlanId?: number) =>
   useQuery({
-    queryKey: queryKeys.alerts.triggered(productCode),
-    queryFn: () => alertsApi.getTriggered({ productCode }),
+    queryKey: queryKeys.alerts.triggered(ratingPlanId),
+    queryFn: () => alertsApi.getTriggered({ ratingPlanId }),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -42,13 +41,15 @@ export const useCheckAlert = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.alerts.all });
 
       // Snapshot for rollback
-      const prevSnapshots = queryClient.getQueriesData<TriggeredAlertsResponse>({
-        queryKey: ['alerts', 'triggered'],
-      });
+      const prevSnapshots = queryClient.getQueriesData<TriggeredAlertsResponse>(
+        {
+          queryKey: ["alerts", "triggered"],
+        },
+      );
 
       // Optimistically toggle the checked flag
       queryClient.setQueriesData<TriggeredAlertsResponse>(
-        { queryKey: ['alerts', 'triggered'] },
+        { queryKey: ["alerts", "triggered"] },
         (old) => {
           if (!old) return old;
           return {
@@ -73,7 +74,40 @@ export const useCheckAlert = () => {
     },
 
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['alerts', 'triggered'] });
+      queryClient.invalidateQueries({ queryKey: ["alerts", "triggered"] });
     },
+  });
+};
+
+export const useCreateAlert = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: AlertFormValues) => alertsApi.create(dto),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.alerts.all }),
+  });
+};
+
+export const useUpdateAlert = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<AlertFormValues> }) =>
+      alertsApi.update(id, dto),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.alerts.all }),
+  });
+};
+
+export const useDeleteAlert = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => alertsApi.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.alerts.all }),
+  });
+};
+
+export const useToggleAlert = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => alertsApi.toggleActive(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.alerts.all }),
   });
 };

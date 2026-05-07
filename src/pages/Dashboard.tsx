@@ -23,58 +23,52 @@ import { useNavigate } from "react-router-dom";
 import { SimStatus } from "../types";
 import { formatMB } from "../utils";
 import SimStatusBadge from "../components/SIM/SimStatusBadge";
-import { useSims } from "../hooks/useSims";
+import { useAllSims } from "../hooks/useSims";
 import { useTriggeredAlerts } from "../hooks/useAlerts";
+import {
+  useDashboardOverview,
+  useSimsGroupByRatingPlan,
+} from "../hooks/useDashboard";
 
 const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { data: simsData, isLoading } = useSims({ pageSize: 200 });
-  const { data: triggeredData } = useTriggeredAlerts();
 
-  const sims = simsData?.data ?? [];
+  const { data: overview, isLoading: overviewLoading } = useDashboardOverview();
+  const { data: ratingPlanGroups = [], isLoading: groupsLoading } =
+    useSimsGroupByRatingPlan();
+  const { data: triggeredData } = useTriggeredAlerts();
+  const { data: allSims = [] } = useAllSims();
+
+  const isLoading = overviewLoading || groupsLoading;
   const triggeredCount = triggeredData?.total ?? 0;
 
-  const stats = useMemo(() => {
-    const total = sims.length;
-    const newSims = sims.filter((s) => s.status === SimStatus.NEW).length;
-    const active = sims.filter((s) => s.status === SimStatus.ACTIVE).length;
-    const confirmed = sims.filter(
-      (s) => s.status === SimStatus.CONFIRMED,
-    ).length;
-    const totalUsedMB = sims.reduce((acc, s) => acc + s.usedMB, 0);
+  const total = overview?.totalSims ?? 0;
+  const newSims = overview?.newSims ?? 0;
+  const active = overview?.needConfirmationSims ?? 0;
+  const confirmed = overview?.confirmedSims ?? 0;
 
-    const byProductCode: Record<string, number> = {};
-    sims.forEach((s) => {
-      byProductCode[s.productCode] = (byProductCode[s.productCode] || 0) + 1;
-    });
-
-    return { total, newSims, active, confirmed, totalUsedMB, byProductCode };
-  }, [sims]);
-
-  const productCodeData = useMemo(
+  const ratingPlanTableData = useMemo(
     () =>
-      Object.entries(stats.byProductCode).map(([code, count]) => ({
-        key: code,
-        code,
-        count,
-        totalUsed: sims
-          .filter((s) => s.productCode === code)
-          .reduce((a, s) => a + s.usedMB, 0),
+      ratingPlanGroups.map((g) => ({
+        key: g.ratingPlanId ?? "null",
+        name: g.ratingPlanName ?? "(Không có gói cước)",
+        count: g._count._all,
+        totalUsed: g._sum.usedMB ?? 0,
       })),
-    [stats.byProductCode, sims],
+    [ratingPlanGroups],
   );
 
   const recentActive = useMemo(
     () =>
-      sims
+      allSims
         .filter((s) => s.status === SimStatus.ACTIVE)
         .sort((a, b) =>
           (b.firstUsedAt ?? "").localeCompare(a.firstUsedAt ?? ""),
         )
         .slice(0, 5),
-    [sims],
+    [allSims],
   );
 
   return (
@@ -110,7 +104,7 @@ const Dashboard: React.FC = () => {
             <Card>
               <Statistic
                 title="Tổng số SIM"
-                value={stats.total}
+                value={total}
                 prefix={<MobileOutlined />}
                 valueStyle={{ color: "#1890ff" }}
               />
@@ -120,7 +114,7 @@ const Dashboard: React.FC = () => {
             <Card>
               <Statistic
                 title="SIM đã xác nhận"
-                value={stats.confirmed}
+                value={confirmed}
                 prefix={<CheckCircleOutlined />}
                 valueStyle={{ color: "#52c41a" }}
               />
@@ -130,7 +124,7 @@ const Dashboard: React.FC = () => {
             <Card>
               <Statistic
                 title="SIM đang hoạt động (chờ xác nhận)"
-                value={stats.active}
+                value={active}
                 prefix={<ThunderboltOutlined />}
                 valueStyle={{ color: "#faad14" }}
               />
@@ -151,18 +145,18 @@ const Dashboard: React.FC = () => {
         </Row>
 
         <Row gutter={[16, 16]}>
-          {/* By Product Code */}
+          {/* By Rating Plan */}
           <Col xs={24} lg={12}>
-            <Card title="📦 Tổng SIM theo mã sản phẩm">
+            <Card title="📦 Tổng SIM theo gói cước">
               <Table
-                dataSource={productCodeData}
+                dataSource={ratingPlanTableData}
                 size="small"
                 pagination={false}
                 columns={[
                   {
-                    title: "Mã sản phẩm",
-                    dataIndex: "code",
-                    key: "code",
+                    title: "Gói cước",
+                    dataIndex: "name",
+                    key: "name",
                     render: (v) => <Tag color="blue">{v}</Tag>,
                   },
                   { title: "Số lượng SIM", dataIndex: "count", key: "count" },
@@ -181,28 +175,26 @@ const Dashboard: React.FC = () => {
           <Col xs={24} lg={12}>
             <Card title="📊 Tỉ lệ trạng thái SIM">
               <div style={{ marginBottom: 16 }}>
-                <Text>Mới ({stats.newSims} SIM)</Text>
+                <Text>Mới ({newSims} SIM)</Text>
                 <Progress
-                  percent={Math.round((stats.newSims / stats.total) * 100) || 0}
+                  percent={Math.round((newSims / total) * 100) || 0}
                   strokeColor="#8c8c8c"
                   style={{ marginBottom: 8 }}
                 />
               </div>
               <div style={{ marginBottom: 16 }}>
-                <Text>Đã hoạt động ({stats.active} SIM)</Text>
+                <Text>Đã hoạt động ({active} SIM)</Text>
                 <Progress
-                  percent={Math.round((stats.active / stats.total) * 100) || 0}
+                  percent={Math.round((active / total) * 100) || 0}
                   strokeColor="#faad14"
                   status="active"
                   style={{ marginBottom: 8 }}
                 />
               </div>
               <div>
-                <Text>Đã xác nhận ({stats.confirmed} SIM)</Text>
+                <Text>Đã xác nhận ({confirmed} SIM)</Text>
                 <Progress
-                  percent={
-                    Math.round((stats.confirmed / stats.total) * 100) || 0
-                  }
+                  percent={Math.round((confirmed / total) * 100) || 0}
                   strokeColor="#52c41a"
                 />
               </div>
@@ -215,7 +207,12 @@ const Dashboard: React.FC = () => {
               >
                 <Statistic
                   title="Tổng dung lượng đã sử dụng"
-                  value={formatMB(stats.totalUsedMB)}
+                  value={formatMB(
+                    ratingPlanGroups.reduce(
+                      (acc, g) => acc + (g._sum.usedMB ?? 0),
+                      0,
+                    ),
+                  )}
                 />
               </div>
             </Card>
@@ -251,10 +248,10 @@ const Dashboard: React.FC = () => {
                     key: "phone",
                   },
                   {
-                    title: "Mã sản phẩm",
-                    dataIndex: "productCode",
-                    key: "code",
-                    render: (v) => <Tag color="blue">{v}</Tag>,
+                    title: "Gói cước",
+                    dataIndex: "ratingPlanName",
+                    key: "ratingPlan",
+                    render: (v) => <Tag color="blue">{v ?? "—"}</Tag>,
                   },
                   {
                     title: "Trạng thái",

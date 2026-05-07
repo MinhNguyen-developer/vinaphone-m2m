@@ -184,7 +184,7 @@ export function useFilters<TKey extends string>({
 
   // –– Filter toolbox popover ────────────────────────────────────────────
   const toolboxContent = (
-    <div style={{ width: 280 }}>
+    <div style={{ width: 400 }}>
       <div style={{ marginBottom: 8, fontWeight: 600 }}>Bộ lọc hiển thị</div>
       <Checkbox.Group
         value={visibleFilterKeys}
@@ -199,11 +199,15 @@ export function useFilters<TKey extends string>({
           gap: "4px 0",
         }}
       >
-        {fields.map((f) => (
-          <Checkbox key={f.filterKey} value={f.filterKey}>
-            {f.label}
-          </Checkbox>
-        ))}
+        {visibleFilterKeys.map((key) => {
+          const field = fields.find((f) => f.filterKey === key);
+          if (!field) return null;
+          return (
+            <Checkbox key={field.filterKey} value={field.filterKey}>
+              {field.label}
+            </Checkbox>
+          );
+        })}
       </Checkbox.Group>
       <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Button

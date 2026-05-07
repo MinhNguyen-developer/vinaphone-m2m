@@ -1,116 +1,263 @@
-import React, { useMemo, useState } from 'react';
-import { Card, Table, Tag, Typography, Space, Badge, Select, Button, Empty } from 'antd';
-import { TeamOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import SimStatusBadge from '../components/SIM/SimStatusBadge';
-import { formatMB } from '../utils';
-import { useGroups } from '../hooks/useGroups';
-import { useSims } from '../hooks/useSims';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  Card,
+  Empty,
+  Modal,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from "antd";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  TeamOutlined,
+} from "@ant-design/icons";
+import type {
+  ColumnsType,
+  TablePaginationConfig,
+} from "antd/es/table/interface";
+import type { GroupWithCount } from "../types";
+import { formatMB } from "../utils";
+import { useGroups, useDeleteGroup } from "../hooks/useGroups";
+import GroupDrawer from "../components/Group/GroupDrawer";
+import { type FilterField, useFilters } from "../hooks/useFilters";
+import { DebouncedInput } from "../components/DebouncedInput";
 
 const { Title, Text } = Typography;
 
-const ProductGroups: React.FC = () => {
-  const { data: groups = [], isLoading: groupsLoading } = useGroups();
-  const { data: simsData, isLoading: simsLoading } = useSims({ pageSize: 200 });
-  const sims = simsData?.data ?? [];
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
-  const [sortUsage, setSortUsage] = useState<'asc' | 'desc' | 'none'>('none');
+type DrawerMode = "create" | "edit";
 
-  const groupStats = useMemo(
-    () =>
-      groups.map((g) => {
-        const gs = sims.filter((s) => (s.groupIds ?? []).includes(g.id));
-        return { ...g, simCount: gs.length, totalUsedMB: gs.reduce((a, s) => a + s.usedMB, 0) };
-      }),
-    [groups, sims]
+// ─── Filter keys ─────────────────────────────────────────────────────────────
+
+const ALL_FILTER_KEYS = ["name"] as const;
+type FilterKey = (typeof ALL_FILTER_KEYS)[number];
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+const ProductGroups: React.FC = () => {
+  const [pagination, setPagination] = useState<TablePaginationConfig>({
+    current: 1,
+    pageSize: 20,
+    pageSizeOptions: ["10", "20", "50"],
+    showSizeChanger: true,
+  });
+
+  // ── Filter fields ─────────────────────────────────────────────────────
+  const filterFields = useMemo<FilterField<FilterKey, any>[]>(
+    () => [
+      {
+        filterKey: "name",
+        label: "Tên nhóm",
+        colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Tìm theo tên nhóm"
+            prefix={<SearchOutlined />}
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+    ],
+    [],
   );
 
-  const simsInGroup = useMemo(() => {
-    if (!selectedGroup) return [];
-    let result = sims.filter((s) => (s.groupIds ?? []).includes(selectedGroup));
-    if (sortUsage === 'asc') result = [...result].sort((a, b) => a.usedMB - b.usedMB);
-    else if (sortUsage === 'desc') result = [...result].sort((a, b) => b.usedMB - a.usedMB);
-    return result;
-  }, [selectedGroup, sims, sortUsage]);
+  const { filterValues, filterBar } = useFilters<FilterKey>({
+    fields: filterFields,
+    storageKey: "group-filters",
+    defaultVisibleKeys: ALL_FILTER_KEYS,
+  });
 
-  type GroupRow = (typeof groupStats)[0];
-  type SimRow = (typeof sims)[0];
+  // Reset to page 1 on filter change
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, current: 1 }));
+  }, [filterValues.name]);
 
-  const groupColumns: ColumnsType<GroupRow> = [
+  // ── Query params ──────────────────────────────────────────────────────
+  const queryParams = useMemo(
+    () => ({
+      page: pagination.current,
+      pageSize: pagination.pageSize,
+      search: (filterValues.name as string) || undefined,
+    }),
+    [filterValues.name, pagination],
+  );
+
+  const {
+    data: groupsResponse,
+    isLoading: groupsLoading,
+    isFetching: groupsFetching,
+    isRefetching: groupsRefetching,
+  } = useGroups(queryParams);
+
+  const groups = groupsResponse?.data ?? [];
+  const total = groupsResponse?.total ?? 0;
+
+  const { mutateAsync: deleteGroup, isPending: deleting } = useDeleteGroup();
+
+  // ── Drawer state ──────────────────────────────────────────────────────
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
+  const [editingGroup, setEditingGroup] = useState<GroupWithCount | null>(null);
+
+  // ── Delete state ──────────────────────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<GroupWithCount | null>(null);
+
+  // ── Handlers ──────────────────────────────────────────────────────────
+  const openCreate = () => {
+    setEditingGroup(null);
+    setDrawerMode("create");
+    setDrawerOpen(true);
+  };
+
+  const openEdit = (group: GroupWithCount) => {
+    setEditingGroup(group);
+    setDrawerMode("edit");
+    setDrawerOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await deleteGroup(deleteTarget.id);
+    message.success(`Đã xoá nhóm "${deleteTarget.name}"`);
+    setDeleteTarget(null);
+  };
+
+  // ── Columns ───────────────────────────────────────────────────────────
+  const groupColumns: ColumnsType<GroupWithCount> = [
     {
-      title: 'Tên nhóm', dataIndex: 'name', key: 'name',
+      title: "Tên nhóm",
+      dataIndex: "name",
+      key: "name",
+      fixed: "left",
       render: (v, record) => (
-        <Button type="link" onClick={() => setSelectedGroup(record.id)} style={{ padding: 0 }}>
-          <TeamOutlined /> {v}
-        </Button>
+        <Space>
+          <TeamOutlined />
+          <Text strong>{v}</Text>
+          <Tag color="blue">{record.simCount} SIM</Tag>
+        </Space>
       ),
     },
-    { title: 'Mô tả', dataIndex: 'description', key: 'desc', render: (v) => v ?? <Text type="secondary">—</Text> },
-    { title: 'Số SIM', dataIndex: 'simCount', key: 'count', render: (v) => <Badge count={v} showZero style={{ background: '#1890ff' }} /> },
-    { title: 'Tổng dung lượng', dataIndex: 'totalUsedMB', key: 'total', render: (v) => formatMB(v) },
-    { title: 'Ngày tạo', dataIndex: 'createdAt', key: 'created' },
-  ];
-
-  const simColumns: ColumnsType<SimRow> = [
-    { title: 'Số điện thoại', dataIndex: 'phoneNumber', key: 'phone' },
-    { title: 'Mã sản phẩm', dataIndex: 'productCode', key: 'code', render: (v: string) => <Tag color="blue">{v}</Tag> },
-    { title: 'Trạng thái', dataIndex: 'status', key: 'status', render: (v: any) => <SimStatusBadge status={v} /> },
     {
-      title: 'Dung lượng đã dùng', dataIndex: 'usedMB', key: 'used',
-      sorter: (a, b) => a.usedMB - b.usedMB,
-      render: (v: number) => formatMB(v),
+      title: "Mô tả",
+      dataIndex: "description",
+      key: "description",
+      render: (v) => v || <Text type="secondary">—</Text>,
     },
     {
-      title: 'Thuộc nhóm', dataIndex: 'groupIds', key: 'groups',
-      render: (gids: string[] | undefined) => (
-        <>{(gids ?? []).map((gid) => { const g = groups.find((x) => x.id === gid); return g ? <Tag key={gid} color="purple">{g.name}</Tag> : null; })}</>
+      title: "Ngày tạo",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      width: 140,
+      render: (v) => (v ? String(v).slice(0, 10) : "—"),
+    },
+    {
+      title: "Tổng dung lượng",
+      key: "totalUsedMB",
+      width: 160,
+      render: (_, record) => formatMB(record.totalUsedMB),
+    },
+    {
+      title: "Hành động",
+      key: "actions",
+      width: 140,
+      render: (_, record) => (
+        <Space>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => openEdit(record)}
+          >
+            Sửa
+          </Button>
+          <Button
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => setDeleteTarget(record)}
+          >
+            Xoá
+          </Button>
+        </Space>
       ),
     },
   ];
-
-  const selectedGroupInfo = groups.find((g) => g.id === selectedGroup);
 
   return (
     <div>
-      <Title level={3}>🗂️ Nhóm sản phẩm</Title>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+        }}
+      >
+        <Title level={3} style={{ margin: 0 }}>
+          🗂️ Nhóm sản phẩm
+        </Title>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          Thêm nhóm
+        </Button>
+      </div>
 
-      <Card title="Danh sách nhóm" style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
+
+      <Card>
         <Table
-          dataSource={groupStats}
+          dataSource={groups}
           columns={groupColumns}
           rowKey="id"
           size="middle"
-          pagination={false}
-          loading={groupsLoading || simsLoading}
-          locale={{ emptyText: <Empty description="Chưa có nhóm sản phẩm nào" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+          loading={groupsLoading || groupsFetching || groupsRefetching}
+          pagination={{
+            ...pagination,
+            total,
+            onChange: (page, pageSize) =>
+              setPagination((prev) => ({ ...prev, current: page, pageSize })),
+          }}
+          scroll={{ x: "max-content" }}
+          locale={{
+            emptyText: (
+              <Empty
+                description="Chưa có nhóm sản phẩm nào"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            ),
+          }}
         />
       </Card>
 
-      {selectedGroup && (
-        <Card
-          title={
-            <Space>
-              <span>📱 SIM trong nhóm: <strong>{selectedGroupInfo?.name}</strong></span>
-              <Select value={sortUsage} onChange={setSortUsage} style={{ width: 180 }}>
-                <Select.Option value="none">Sắp xếp dung lượng</Select.Option>
-                <Select.Option value="asc">↑ Tăng dần</Select.Option>
-                <Select.Option value="desc">↓ Giảm dần</Select.Option>
-              </Select>
-            </Space>
-          }
-          extra={<Button size="small" onClick={() => setSelectedGroup(null)}>Đóng</Button>}
-        >
-          <Table
-            dataSource={simsInGroup}
-            columns={simColumns}
-            rowKey="id"
-            size="small"
-            pagination={{ pageSize: 10 }}
-            loading={simsLoading}
-            locale={{ emptyText: <Empty description="Nhóm chưa có SIM nào" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-          />
-        </Card>
-      )}
+      <GroupDrawer
+        open={drawerOpen}
+        mode={drawerMode}
+        editingGroup={editingGroup}
+        onClose={() => setDrawerOpen(false)}
+      />
+
+      <Modal
+        title="Xác nhận xoá nhóm"
+        open={!!deleteTarget}
+        onOk={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        okText="Xoá"
+        okButtonProps={{ danger: true, loading: deleting }}
+        cancelText="Huỷ"
+      >
+        <p>
+          Bạn có chắc muốn xoá nhóm <strong>"{deleteTarget?.name}"</strong>{" "}
+          không?
+        </p>
+        <p style={{ color: "#ff4d4f" }}>
+          Hành động này sẽ xoá toàn bộ quan hệ SIM trong nhóm và không thể hoàn
+          tác.
+        </p>
+      </Modal>
     </div>
   );
 };
