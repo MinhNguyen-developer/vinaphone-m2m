@@ -47,7 +47,7 @@ const MasterSims: React.FC = () => {
     showSizeChanger: true,
   });
 
-  const [modalSim, setModalSim] = useState<SimCard | null>(null);
+  const [modalSimId, setModalSimId] = useState<string | null>(null);
   const [groupModalId, setGroupModalId] = useState<string | null>(null);
   const [groupModalName, setGroupModalName] = useState<string | null>(null);
 
@@ -213,7 +213,7 @@ const MasterSims: React.FC = () => {
           <Text
             strong
             style={{ color: "#1677ff", cursor: "pointer" }}
-            onClick={() => setModalSim(record)}
+            onClick={() => setModalSimId(record.id)}
           >
             {v}
           </Text>
@@ -353,7 +353,10 @@ const MasterSims: React.FC = () => {
         />
       </Card>
 
-      <SimMasterMembersModal sim={modalSim} onClose={() => setModalSim(null)} />
+      <SimMasterMembersModal
+        simId={modalSimId}
+        onClose={() => setModalSimId(null)}
+      />
 
       <SimGroupMembersModal
         groupId={groupModalId}
