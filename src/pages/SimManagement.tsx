@@ -887,7 +887,7 @@ const SimManagement: React.FC = () => {
         </Space>
       </div>
 
-      {import.meta.env.DEV && <SyncPanel />}
+      <SyncPanel />
 
       {/* Filters */}
       <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
