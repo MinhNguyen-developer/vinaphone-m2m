@@ -9,6 +9,7 @@ export const useGroups = (params: QueryGroupDevicesParams) =>
       search: params.search,
       page: params.page,
       pageSize: params.pageSize,
+      sort: params.sort,
     }),
     queryFn: () => groupsApi.getList(params),
     staleTime: 300_000, // groups change rarely

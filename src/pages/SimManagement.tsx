@@ -14,12 +14,18 @@ import {
   Modal,
   Checkbox,
   Divider,
+  Input,
+  Upload,
+  Alert,
+  Flex,
 } from "antd";
 import {
   SearchOutlined,
   DownloadOutlined,
   ExportOutlined,
   TeamOutlined,
+  StopOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import type {
   ColumnsType,
@@ -31,7 +37,13 @@ import type {
 import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import type { SimCard, SimGroup } from "../types";
-import { useSims, useUpdateManySimStatus } from "../hooks/useSims";
+import {
+  useSims,
+  useUpdateManySimStatus,
+  useUpdateSimStatus,
+  useBulkCancelSims,
+  useUpdateSimNote,
+} from "../hooks/useSims";
 import { useAlerts, useTriggeredAlerts } from "../hooks/useAlerts";
 import { formatMB, getUsageColor } from "../utils";
 import SimMasterMembersModal from "../components/SIM/SimMasterMembersModal";
@@ -49,6 +61,8 @@ import { queryKeys } from "../hooks/queryKeys";
 import { groupsApi } from "../api/groups.api";
 import { ratingPlansApi } from "../api/rating-plans.api";
 import usePagination from "../hooks/usePagination";
+
+import type { RcFile } from "antd/es/upload";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -68,6 +82,7 @@ const ALL_COLUMN_KEYS = [
   "note",
   "status",
   "simGroups",
+  "action",
 ] as const;
 type ColumnKey = (typeof ALL_COLUMN_KEYS)[number];
 
@@ -84,6 +99,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   note: "Ghi chú",
   status: "Trạng thái",
   simGroups: "Nhóm thiết bị",
+  action: "Hành động",
 };
 
 const DEFAULT_VISIBLE: ColumnKey[] = [
@@ -97,6 +113,7 @@ const DEFAULT_VISIBLE: ColumnKey[] = [
   "sogMembers",
   "usedMB",
   "activated",
+  "action",
 ];
 
 const STORAGE_KEY = "sim-column-visibility";
@@ -169,6 +186,8 @@ const ALL_EXPORT_COLUMNS: ExportColumn[] = ALL_COLUMN_KEYS.map((key) => {
           .map((g) => g.group?.name)
           .filter(Boolean)
           .join(", ");
+      case "action":
+        return "";
     }
   };
   return { key, label, getValue };
@@ -250,6 +269,127 @@ const ExportModal: React.FC<ExportModalProps> = ({ open, data, onClose }) => {
           value: c.key,
         }))}
       />
+    </Modal>
+  );
+};
+
+// ─── Bulk Cancel Modal ────────────────────────────────────────────────────
+
+interface BulkCancelModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+const BulkCancelModal: React.FC<BulkCancelModalProps> = ({ open, onClose }) => {
+  const [textValue, setTextValue] = useState("");
+  const [parsed, setParsed] = useState<string[]>([]);
+  const { mutate: bulkCancel, isPending } = useBulkCancelSims();
+
+  const parsePhoneNumbers = (raw: string): string[] =>
+    raw
+      .split(/[\n,;]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+  const handleTextChange = (val: string) => {
+    setTextValue(val);
+    setParsed(parsePhoneNumbers(val));
+  };
+
+  const handleCsvUpload = (file: RcFile): boolean => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? "";
+      const numbers = parsePhoneNumbers(text);
+      setTextValue(numbers.join(","));
+      setParsed(numbers);
+    };
+    reader.readAsText(file);
+    return false; // prevent auto-upload
+  };
+
+  const handleConfirm = () => {
+    if (parsed.length === 0) {
+      message.warning("Vui lòng nhập ít nhất 1 số điện thoại!");
+      return;
+    }
+    bulkCancel(parsed, {
+      onSuccess: (result) => {
+        message.success(
+          `Đã hủy ${result.cancelled}/${result.requested} SIM` +
+            (result.notFound > 0
+              ? ` (${result.notFound} số không tìm thấy)`
+              : ""),
+        );
+        setTextValue("");
+        setParsed([]);
+        onClose();
+      },
+      onError: () => message.error("Hủy SIM thất bại!"),
+    });
+  };
+
+  const handleClose = () => {
+    setTextValue("");
+    setParsed([]);
+    onClose();
+  };
+
+  return (
+    <Modal
+      title="Hủy SIM hàng loạt"
+      open={open}
+      onOk={handleConfirm}
+      onCancel={handleClose}
+      okText="Xác nhận hủy"
+      okButtonProps={{ danger: true, loading: isPending }}
+      cancelText="Đóng"
+      width={520}
+    >
+      <Space orientation="vertical" style={{ width: "100%" }} size={12}>
+        <Alert
+          type="warning"
+          showIcon
+          title="SIM bị hủy sẽ chuyển sang trạng thái Đã hủy."
+        />
+        <div>
+          <Text strong>Tải lên file CSV</Text>
+          <Upload.Dragger
+            accept=".csv,.txt"
+            beforeUpload={handleCsvUpload}
+            showUploadList={false}
+            style={{ marginTop: 6 }}
+          >
+            <p className="ant-upload-drag-icon">
+              <UploadOutlined />
+            </p>
+            <p className="ant-upload-text">
+              Kéo thả file vào đây hoặc click để chọn
+            </p>
+            <p className="ant-upload-hint">
+              File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại
+            </p>
+          </Upload.Dragger>
+        </div>
+        <Divider plain style={{ margin: "4px 0" }}>
+          hoặc nhập tay
+        </Divider>
+        <div>
+          <Text strong>Danh sách số điện thoại</Text>
+          <Input.TextArea
+            rows={4}
+            placeholder={"0987654321,0912345678,..."}
+            value={textValue}
+            onChange={(e) => handleTextChange(e.target.value)}
+            style={{ marginTop: 6, fontFamily: "monospace", fontSize: 13 }}
+          />
+          {parsed.length > 0 && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Đã nhận {parsed.length} số điện thoại
+            </Text>
+          )}
+        </div>
+      </Space>
     </Modal>
   );
 };
@@ -569,6 +709,10 @@ const SimManagement: React.FC = () => {
   }, [triggeredData]);
 
   const { mutate } = useUpdateManySimStatus();
+  const { mutate: updateSimStatus } = useUpdateSimStatus();
+  const { mutate: cancelSim } = useBulkCancelSims();
+  const { mutate: updateNote } = useUpdateSimNote();
+  const [bulkCancelOpen, setBulkCancelOpen] = useState(false);
 
   // ── Column definitions ────────────────────────────────────────────────
   const allColumns: (ColumnsType<SimCard>[number] & { colKey: ColumnKey })[] = [
@@ -767,6 +911,12 @@ const SimManagement: React.FC = () => {
           <Text>{v}</Text>
         );
       },
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("status:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
     },
     {
       colKey: "sogMembership",
@@ -809,8 +959,62 @@ const SimManagement: React.FC = () => {
       title: "Ghi chú",
       dataIndex: "note",
       key: "note",
-      width: 150,
-      render: (v) => v ?? <Text type="secondary">—</Text>,
+      width: 200,
+      render: (v, record) => (
+        <Text
+          editable={{
+            tooltip: "Nhấn để sửa",
+            text: v ?? "",
+            onChange: (next) => {
+              const trimmed = next.trim() || null;
+              if ((trimmed ?? "") !== (v ?? "")) {
+                updateNote(
+                  { id: record.id, note: trimmed },
+                  { onError: () => message.error("Lưu ghi chú thất bại!") },
+                );
+              }
+            },
+          }}
+        >
+          {v || ""}
+        </Text>
+      ),
+    },
+    {
+      colKey: "action",
+      title: "Hành động",
+      key: "action",
+      fixed: "right",
+      width: 160,
+      render: (_v, record) => (
+        <Space size={4}>
+          <Button
+            size="small"
+            type="primary"
+            disabled={record.status === 3 || record.status === 4}
+            onClick={() =>
+              updateSimStatus(
+                { id: record.id, action: "confirm" },
+                { onError: () => message.error("Xác nhận thất bại!") },
+              )
+            }
+          >
+            Xác nhận
+          </Button>
+          <Button
+            size="small"
+            danger
+            disabled={record.status === 4}
+            onClick={() =>
+              cancelSim([record.phoneNumber], {
+                onError: () => message.error("Huỷ SIM thất bại!"),
+              })
+            }
+          >
+            Huỷ SIM
+          </Button>
+        </Space>
+      ),
     },
   ];
 
@@ -862,39 +1066,21 @@ const SimManagement: React.FC = () => {
         <Title level={3} style={{ margin: 0 }}>
           📱 Danh sách SIM M2M
         </Title>
-        <Space wrap>
-          {filterToolbox}
-          {columnPickerButton}
-          <Tooltip title="Xuất tất cả SIM trong bộ lọc hiện tại">
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={() => handleExport(true)}
-            >
-              Xuất ({sims.length})
-            </Button>
-          </Tooltip>
-          <Tooltip title="Xuất các SIM đang được tích chọn">
-            <Button
-              type="primary"
-              icon={<ExportOutlined />}
-              onClick={() => handleExport(false)}
-              disabled={selectedRowKeys.length === 0}
-            >
-              Xuất đã chọn
-              {selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ""}
-            </Button>
-          </Tooltip>
-        </Space>
       </div>
 
       <SyncPanel />
 
       {/* Filters */}
-      <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
+      <Card style={{ marginBottom: 12 }}>
+        <Space wrap size="medium">
+          {filterToolbox}
+          {filterBar}
+        </Space>
+      </Card>
 
       {/* Table */}
       <Card>
-        <Space wrap align="baseline">
+        <Flex wrap align="baseline" justify="space-between">
           <Text style={{ display: "block", marginBottom: 10 }}>
             Hiển thị <strong>{sims.length}</strong> /{" "}
             {simsData?.total ?? sims.length} SIM
@@ -904,21 +1090,54 @@ const SimManagement: React.FC = () => {
               </Tag>
             )}
           </Text>
-          {!!selectedRowKeys.length && (
-            <Button
-              type="primary"
-              size="small"
-              onClick={() => {
-                mutate({
-                  ids: selectedRowKeys as string[],
-                  action: "confirm",
-                });
-              }}
-            >
-              Xác nhận
-            </Button>
-          )}
-        </Space>
+          <Space wrap>
+            {!!selectedRowKeys.length && (
+              <Button
+                type="primary"
+                size="small"
+                onClick={() => {
+                  mutate({
+                    ids: selectedRowKeys as string[],
+                    action: "confirm",
+                  });
+                }}
+              >
+                Xác nhận
+              </Button>
+            )}
+            <Tooltip title="Hủy hàng loạt SIM theo số điện thoại">
+              <Button
+                danger
+                icon={<StopOutlined />}
+                onClick={() => setBulkCancelOpen(true)}
+              >
+                Hủy SIM
+              </Button>
+            </Tooltip>
+            {columnPickerButton}
+            <Tooltip title="Xuất tất cả SIM trong bộ lọc hiện tại">
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={() => handleExport(true)}
+              >
+                Xuất ({sims.length})
+              </Button>
+            </Tooltip>
+            <Tooltip title="Xuất các SIM đang được tích chọn">
+              <Button
+                type="primary"
+                icon={<ExportOutlined />}
+                onClick={() => handleExport(false)}
+                disabled={selectedRowKeys.length === 0}
+              >
+                Xuất đã chọn
+                {selectedRowKeys.length > 0
+                  ? ` (${selectedRowKeys.length})`
+                  : ""}
+              </Button>
+            </Tooltip>
+          </Space>
+        </Flex>
         <Table
           dataSource={sims}
           columns={columns}
@@ -956,6 +1175,10 @@ const SimManagement: React.FC = () => {
         open={exportModalOpen}
         data={exportData}
         onClose={() => setExportModalOpen(false)}
+      />
+      <BulkCancelModal
+        open={bulkCancelOpen}
+        onClose={() => setBulkCancelOpen(false)}
       />
     </div>
   );

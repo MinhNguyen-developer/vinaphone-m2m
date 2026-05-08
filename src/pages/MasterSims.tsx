@@ -327,7 +327,6 @@ const MasterSims: React.FC = () => {
         <Title level={3} style={{ margin: 0 }}>
           👑 Sim Chủ
         </Title>
-        <Space wrap>{filterToolbox}</Space>
       </div>
 
       <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
@@ -335,7 +334,12 @@ const MasterSims: React.FC = () => {
       </Text>
 
       {/* Filters */}
-      <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
+      <Card style={{ marginBottom: 12 }}>
+        <Space wrap size="medium">
+          {filterToolbox}
+          {filterBar}
+        </Space>
+      </Card>
 
       <Card>
         <Table

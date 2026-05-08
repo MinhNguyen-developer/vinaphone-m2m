@@ -92,12 +92,36 @@ export const useUpdateManySimStatus = () => {
   });
 };
 
+/** POST /sims/bulk-cancel – hủy hàng loạt SIM theo số điện thoại */
+export const useBulkCancelSims = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (phoneNumbers: string[]) =>
+      simsApi.bulkCancelSims(phoneNumbers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+
 /** PATCH /sims/:id/first-used-at */
 export const useUpdateFirstUsedAt = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, firstUsedAt }: { id: string; firstUsedAt: string }) =>
       simsApi.updateFirstUsedAt(id, firstUsedAt),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+
+/** PATCH /sims/:id/note */
+export const useUpdateSimNote = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string | null }) =>
+      simsApi.updateNote(id, note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
     },

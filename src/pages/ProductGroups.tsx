@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Empty,
+  Flex,
   Modal,
   Space,
   Table,
@@ -20,6 +21,7 @@ import {
 import type {
   ColumnsType,
   TablePaginationConfig,
+  SorterResult,
 } from "antd/es/table/interface";
 import type { GroupWithCount } from "../types";
 import { formatMB } from "../utils";
@@ -46,6 +48,21 @@ const ProductGroups: React.FC = () => {
     pageSizeOptions: ["10", "20", "50"],
     showSizeChanger: true,
   });
+  const [sort, setSort] = useState<string | undefined>(undefined);
+
+  const handleTableChange = (
+    newPagination: TablePaginationConfig,
+    _filters: Record<string, unknown>,
+    sorter: SorterResult<GroupWithCount> | SorterResult<GroupWithCount>[],
+  ) => {
+    setPagination(newPagination);
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    setSort(
+      s.columnKey && s.order
+        ? `${String(s.columnKey)}:${s.order === "ascend" ? "asc" : "desc"}`
+        : undefined,
+    );
+  };
 
   // ── Filter fields ─────────────────────────────────────────────────────
   const filterFields = useMemo<FilterField<FilterKey, any>[]>(
@@ -84,8 +101,9 @@ const ProductGroups: React.FC = () => {
       page: pagination.current,
       pageSize: pagination.pageSize,
       search: (filterValues.name as string) || undefined,
+      sort,
     }),
-    [filterValues.name, pagination],
+    [filterValues.name, pagination, sort],
   );
 
   const {
@@ -135,6 +153,12 @@ const ProductGroups: React.FC = () => {
       dataIndex: "name",
       key: "name",
       fixed: "left",
+      sorter: true,
+      sortOrder: sort?.startsWith("name:")
+        ? sort.endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
       render: (v, record) => (
         <Space>
           <TeamOutlined />
@@ -154,12 +178,24 @@ const ProductGroups: React.FC = () => {
       dataIndex: "createdAt",
       key: "createdAt",
       width: 140,
+      sorter: true,
+      sortOrder: sort?.startsWith("createdAt:")
+        ? sort.endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
       render: (v) => (v ? String(v).slice(0, 10) : "—"),
     },
     {
       title: "Tổng dung lượng",
       key: "totalUsedMB",
       width: 160,
+      sorter: true,
+      sortOrder: sort?.startsWith("totalUsedMB:")
+        ? sort.endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
       render: (_, record) => formatMB(record.totalUsedMB),
     },
     {
@@ -201,20 +237,23 @@ const ProductGroups: React.FC = () => {
         <Title level={3} style={{ margin: 0 }}>
           🗂️ Nhóm sản phẩm
         </Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-          Thêm nhóm
-        </Button>
       </div>
 
       <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
 
       <Card>
+        <Flex justify="end" style={{ marginBottom: 12 }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            Thêm nhóm
+          </Button>
+        </Flex>
         <Table
           dataSource={groups}
           columns={groupColumns}
           rowKey="id"
           size="middle"
           loading={groupsLoading || groupsFetching || groupsRefetching}
+          onChange={handleTableChange}
           pagination={{
             ...pagination,
             total,
