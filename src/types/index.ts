@@ -19,6 +19,7 @@ export const SimStatus = {
   NEW: 1,
   ACTIVE: 2,
   CONFIRMED: 3,
+  CANCELLED: 4,
 } as const;
 export type SimStatus = (typeof SimStatus)[keyof typeof SimStatus];
 
@@ -208,6 +209,7 @@ export interface QueryGroupMembersParams extends QueryPaginatedparams {
 
 export interface QueryGroupDevicesParams extends QueryPaginatedparams {
   search?: string;
+  sort?: string;
 }
 
 export interface QueryMasterSimParams extends QueryPaginatedparams {

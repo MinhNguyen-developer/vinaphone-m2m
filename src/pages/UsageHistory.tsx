@@ -298,10 +298,14 @@ const UsageHistory: React.FC = () => {
         <Title level={3} style={{ margin: 0 }}>
           📅 Lịch sử sử dụng dung lượng
         </Title>
-        <Space wrap>{filterToolbox}</Space>
       </div>
 
-      <Card style={{ marginBottom: 12 }}>{filterBar}</Card>
+      <Card style={{ marginBottom: 12 }}>
+        <Space wrap size="medium">
+          {filterToolbox}
+          {filterBar}
+        </Space>
+      </Card>
 
       <Card>
         <Text style={{ display: "block", marginBottom: 10 }}>

@@ -108,4 +108,27 @@ export const simsApi = {
     );
     return res.data;
   },
+
+  /**
+   * POST /sims/bulk-cancel
+   * Hủy hàng loạt SIM theo số điện thoại
+   */
+  bulkCancelSims: async (
+    phoneNumbers: string[],
+  ): Promise<{ cancelled: number; requested: number; notFound: number }> => {
+    const res = await apiClient.post<{
+      cancelled: number;
+      requested: number;
+      notFound: number;
+    }>("/sims/bulk-cancel", { phoneNumbers });
+    return res.data;
+  },
+
+  /**
+   * PATCH /sims/:id/note
+   */
+  updateNote: async (id: string, note: string | null): Promise<SimCard> => {
+    const res = await apiClient.patch<SimCard>(`/sims/${id}/note`, { note });
+    return res.data;
+  },
 };
