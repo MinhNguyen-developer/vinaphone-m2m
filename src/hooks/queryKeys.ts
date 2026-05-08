@@ -1,6 +1,7 @@
 import type {
   GroupSimListParams,
   QueryAlertParams,
+  QueryGroupDevicesParams,
   RatingPlanListParams,
   SimListParams,
   UsageHistoryParams,
@@ -27,7 +28,7 @@ export const queryKeys = {
   },
   groups: {
     all: ["groups"] as const,
-    list: (params?: { search?: string; page?: number; pageSize?: number }) =>
+    list: (params?: QueryGroupDevicesParams) =>
       ["groups", "list", params ?? {}] as const,
   },
   alerts: {
