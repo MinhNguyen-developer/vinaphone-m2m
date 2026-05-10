@@ -26,6 +26,7 @@ import {
   TeamOutlined,
   StopOutlined,
   UploadOutlined,
+  ReloadOutlined,
 } from "@ant-design/icons";
 import type {
   ColumnsType,
@@ -42,8 +43,10 @@ import {
   useUpdateManySimStatus,
   useUpdateSimStatus,
   useBulkCancelSims,
+  useBulkResetSims,
   useUpdateSimNote,
 } from "../hooks/useSims";
+import { simsApi } from "../api/sims.api";
 import { useAlerts, useTriggeredAlerts } from "../hooks/useAlerts";
 import { formatMB, getUsageColor } from "../utils";
 import SimMasterMembersModal from "../components/SIM/SimMasterMembersModal";
@@ -273,6 +276,132 @@ const ExportModal: React.FC<ExportModalProps> = ({ open, data, onClose }) => {
   );
 };
 
+// ─── Bulk Reset Modal ─────────────────────────────────────────────────────
+
+interface BulkResetModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+const BulkResetModal: React.FC<BulkResetModalProps> = ({ open, onClose }) => {
+  const [textValue, setTextValue] = useState("");
+  const [parsed, setParsed] = useState<string[]>([]);
+  const { mutate: bulkReset, isPending } = useBulkResetSims();
+
+  const parsePhoneNumbers = (raw: string): string[] =>
+    raw
+      .split(/[\n,;]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+  const handleTextChange = (val: string) => {
+    setTextValue(val);
+    setParsed(parsePhoneNumbers(val));
+  };
+
+  const handleCsvUpload = (file: RcFile): boolean => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? "";
+      const numbers = parsePhoneNumbers(text);
+      setTextValue(numbers.join("\n"));
+      setParsed(numbers);
+    };
+    reader.readAsText(file);
+    return false;
+  };
+
+  const handleConfirm = () => {
+    if (parsed.length === 0) {
+      message.warning("Vui lòng nhập ít nhất 1 số điện thoại!");
+      return;
+    }
+    bulkReset(parsed, {
+      onSuccess: (result) => {
+        if (result.reset > 0) {
+          message.success(
+            `Đã reset ${result.reset}/${result.requested} SIM thành công`,
+          );
+        }
+        if (result.notFound > 0) {
+          message.warning(
+            `${result.notFound} số điện thoại không tìm thấy trong hệ thống`,
+            6,
+          );
+        }
+        setTextValue("");
+        setParsed([]);
+        if (result.notFound === 0) onClose();
+      },
+      onError: () => message.error("Reset SIM thất bại!"),
+    });
+  };
+
+  const handleClose = () => {
+    setTextValue("");
+    setParsed([]);
+    onClose();
+  };
+
+  return (
+    <Modal
+      title="Reset SIM hàng loạt"
+      open={open}
+      onOk={handleConfirm}
+      onCancel={handleClose}
+      okText="Xác nhận reset"
+      okButtonProps={{ danger: true, loading: isPending }}
+      cancelText="Đóng"
+      width={520}
+    >
+      <Space orientation="vertical" style={{ width: "100%" }} size={12}>
+        <Alert
+          type="warning"
+          showIcon
+          message="SIM bị reset sẽ chuyển về trạng thái Mới và toàn bộ lịch sử dữ liệu sẽ bị xóa."
+        />
+        <div>
+          <Text strong>Tải lên file CSV</Text>
+          <Upload.Dragger
+            accept=".csv,.txt"
+            beforeUpload={handleCsvUpload}
+            showUploadList={false}
+            style={{ marginTop: 6 }}
+          >
+            <p className="ant-upload-drag-icon">
+              <UploadOutlined />
+            </p>
+            <p className="ant-upload-text">
+              Kéo thả file vào đây hoặc click để chọn
+            </p>
+            <p className="ant-upload-hint">
+              File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại
+            </p>
+          </Upload.Dragger>
+        </div>
+        <Divider plain style={{ margin: "4px 0" }}>
+          hoặc nhập tay
+        </Divider>
+        <div>
+          <Text strong>Danh sách số điện thoại</Text>
+          <Input.TextArea
+            rows={4}
+            placeholder={"0987654321\n0912345678\n..."}
+            value={textValue}
+            onChange={(e) => handleTextChange(e.target.value)}
+            style={{ marginTop: 6, fontFamily: "monospace", fontSize: 13 }}
+          />
+          {parsed.length > 0 && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Đã nhận {parsed.length} số điện thoại
+            </Text>
+          )}
+        </div>
+      </Space>
+    </Modal>
+  );
+};
+
 // ─── Bulk Cancel Modal ────────────────────────────────────────────────────
 
 interface BulkCancelModalProps {
@@ -301,7 +430,7 @@ const BulkCancelModal: React.FC<BulkCancelModalProps> = ({ open, onClose }) => {
     reader.onload = (e) => {
       const text = (e.target?.result as string) ?? "";
       const numbers = parsePhoneNumbers(text);
-      setTextValue(numbers.join(","));
+      setTextValue(numbers.join("\n"));
       setParsed(numbers);
     };
     reader.readAsText(file);
@@ -315,15 +444,20 @@ const BulkCancelModal: React.FC<BulkCancelModalProps> = ({ open, onClose }) => {
     }
     bulkCancel(parsed, {
       onSuccess: (result) => {
-        message.success(
-          `Đã hủy ${result.cancelled}/${result.requested} SIM` +
-            (result.notFound > 0
-              ? ` (${result.notFound} số không tìm thấy)`
-              : ""),
-        );
+        if (result.cancelled > 0) {
+          message.success(
+            `Đã hủy ${result.cancelled}/${result.requested} SIM thành công`,
+          );
+        }
+        if (result.notFound > 0) {
+          message.warning(
+            `${result.notFound} số điện thoại không tìm thấy trong hệ thống`,
+            6,
+          );
+        }
         setTextValue("");
         setParsed([]);
-        onClose();
+        if (result.notFound === 0) onClose();
       },
       onError: () => message.error("Hủy SIM thất bại!"),
     });
@@ -378,7 +512,7 @@ const BulkCancelModal: React.FC<BulkCancelModalProps> = ({ open, onClose }) => {
           <Text strong>Danh sách số điện thoại</Text>
           <Input.TextArea
             rows={4}
-            placeholder={"0987654321,0912345678,..."}
+            placeholder={"0987654321\n0912345678\n..."}
             value={textValue}
             onChange={(e) => handleTextChange(e.target.value)}
             style={{ marginTop: 6, fontFamily: "monospace", fontSize: 13 }}
@@ -711,8 +845,10 @@ const SimManagement: React.FC = () => {
   const { mutate } = useUpdateManySimStatus();
   const { mutate: updateSimStatus } = useUpdateSimStatus();
   const { mutate: cancelSim } = useBulkCancelSims();
+  const { mutate: resetSim } = useBulkResetSims();
   const { mutate: updateNote } = useUpdateSimNote();
   const [bulkCancelOpen, setBulkCancelOpen] = useState(false);
+  const [bulkResetOpen, setBulkResetOpen] = useState(false);
 
   // ── Column definitions ────────────────────────────────────────────────
   const allColumns: (ColumnsType<SimCard>[number] & { colKey: ColumnKey })[] = [
@@ -734,6 +870,7 @@ const SimManagement: React.FC = () => {
           {alertSimIds.has(record.id) && <Badge status="error" />}
           <Text
             strong
+            copyable
             style={{ color: "#1677ff", cursor: "pointer" }}
             onClick={() => setModalSimId(record.id)}
           >
@@ -763,7 +900,7 @@ const SimManagement: React.FC = () => {
       width: 155,
       render: (v) =>
         v ? (
-          <Text code style={{ fontSize: 11 }}>
+          <Text copyable style={{ fontSize: 11 }}>
             {v}
           </Text>
         ) : (
@@ -797,6 +934,12 @@ const SimManagement: React.FC = () => {
       dataIndex: "simGroups",
       key: "simGroups",
       width: 180,
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("simGroups:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
       render: (v: SimGroup[] | undefined) =>
         v ? (
           <Space>
@@ -979,6 +1122,12 @@ const SimManagement: React.FC = () => {
           {v || ""}
         </Text>
       ),
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("note:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
     },
     {
       colKey: "action",
@@ -1013,6 +1162,21 @@ const SimManagement: React.FC = () => {
           >
             Huỷ SIM
           </Button>
+          <Button
+            size="small"
+            disabled={record.status === 1}
+            onClick={() =>
+              resetSim([record.phoneNumber], {
+                onSuccess: (r) => {
+                  if (r.reset > 0) message.success("Reset SIM thành công");
+                  else message.warning("Không tìm thấy SIM");
+                },
+                onError: () => message.error("Reset SIM thất bại!"),
+              })
+            }
+          >
+            Reset
+          </Button>
         </Space>
       ),
     },
@@ -1034,6 +1198,7 @@ const SimManagement: React.FC = () => {
 
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportData, setExportData] = useState<SimCard[]>([]);
+  const [exportAllLoading, setExportAllLoading] = useState(false);
 
   const handleExport = (exportAll: boolean) => {
     if (!exportAll && selectedRowKeys.length === 0) {
@@ -1045,6 +1210,19 @@ const SimManagement: React.FC = () => {
       : sims.filter((s) => selectedRowKeys.includes(s.id));
     setExportData(data);
     setExportModalOpen(true);
+  };
+
+  const handleExportAllDB = async () => {
+    setExportAllLoading(true);
+    try {
+      const all = await simsApi.getAll();
+      setExportData(all);
+      setExportModalOpen(true);
+    } catch {
+      message.error("Không thể tải dữ liệu!");
+    } finally {
+      setExportAllLoading(false);
+    }
   };
 
   // ── Column picker popover ─────────────────────────────────────────────
@@ -1114,6 +1292,14 @@ const SimManagement: React.FC = () => {
                 Hủy SIM
               </Button>
             </Tooltip>
+            <Tooltip title="Reset hàng loạt SIM theo số điện thoại">
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => setBulkResetOpen(true)}
+              >
+                Reset SIM
+              </Button>
+            </Tooltip>
             {columnPickerButton}
             <Tooltip title="Xuất tất cả SIM trong bộ lọc hiện tại">
               <Button
@@ -1121,6 +1307,15 @@ const SimManagement: React.FC = () => {
                 onClick={() => handleExport(true)}
               >
                 Xuất ({sims.length})
+              </Button>
+            </Tooltip>
+            <Tooltip title="Xuất toàn bộ SIM trong cơ sở dữ liệu">
+              <Button
+                icon={<DownloadOutlined />}
+                loading={exportAllLoading}
+                onClick={handleExportAllDB}
+              >
+                Xuất toàn bộ SIM
               </Button>
             </Tooltip>
             <Tooltip title="Xuất các SIM đang được tích chọn">
@@ -1179,6 +1374,10 @@ const SimManagement: React.FC = () => {
       <BulkCancelModal
         open={bulkCancelOpen}
         onClose={() => setBulkCancelOpen(false)}
+      />
+      <BulkResetModal
+        open={bulkResetOpen}
+        onClose={() => setBulkResetOpen(false)}
       />
     </div>
   );

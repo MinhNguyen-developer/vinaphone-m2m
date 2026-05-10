@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { alertsApi, type AlertFormValues } from "../api/alerts.api";
-import type { QueryAlertParams, TriggeredAlertsResponse } from "../types";
+import type {
+  QueryAlertParams,
+  QueryTriggeredParams,
+  TriggeredAlertsResponse,
+} from "../types";
 import { queryKeys } from "./queryKeys";
 
 export const useAlerts = (params?: QueryAlertParams) =>
@@ -10,13 +14,25 @@ export const useAlerts = (params?: QueryAlertParams) =>
     staleTime: 120_000,
   });
 
-export const useTriggeredAlerts = (ratingPlanId?: number) =>
+export const useTriggeredAlerts = (params?: QueryTriggeredParams) =>
   useQuery({
-    queryKey: queryKeys.alerts.triggered(ratingPlanId),
-    queryFn: () => alertsApi.getTriggered({ ratingPlanId }),
+    queryKey: queryKeys.alerts.triggered(params),
+    queryFn: () => alertsApi.getTriggered(params),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+
+/** POST /alerts/triggered/bulk-check */
+export const useBulkCheckAlerts = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (phoneNumbers: string[]) =>
+      alertsApi.bulkCheckAlerts(phoneNumbers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts", "triggered"] });
+    },
+  });
+};
 
 /**
  * Marks a single triggered alert as checked / unchecked.

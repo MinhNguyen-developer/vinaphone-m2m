@@ -16,6 +16,7 @@ import { formatMB, getUsageColor } from "../../utils";
 import SimStatusBadge from "./SimStatusBadge";
 import { useSimDetail } from "../../hooks/useSims";
 import type { ColumnsType } from "antd/lib/table";
+import SimGroupMembersTable from "./SimGroupMembersTable";
 
 const { Title, Text } = Typography;
 
@@ -192,6 +193,14 @@ const SimMasterMembersModal: React.FC<Props> = ({ simId, onClose }) => {
                 loading={simLoading}
                 pagination={false}
                 columns={columns}
+                expandable={{
+                  rowExpandable: (r) =>
+                    r.sogIsOwner === true && !!sim?.sogGroupId,
+                  expandedRowRender: () => (
+                    <SimGroupMembersTable groupId={sim!.sogGroupId!} />
+                  ),
+                  defaultExpandAllRows: true,
+                }}
               />
             </Card>
           )}

@@ -2,6 +2,7 @@ import type {
   GroupSimListParams,
   QueryAlertParams,
   QueryGroupDevicesParams,
+  QueryTriggeredParams,
   RatingPlanListParams,
   SimListParams,
   UsageHistoryParams,
@@ -35,8 +36,8 @@ export const queryKeys = {
     all: ["alerts"] as const,
     list: (params?: QueryAlertParams) =>
       ["alerts", "list", params ?? {}] as const,
-    triggered: (ratingPlanId?: number) =>
-      ["alerts", "triggered", ratingPlanId ?? 0] as const,
+    triggered: (params?: QueryTriggeredParams) =>
+      ["alerts", "triggered", params ?? {}] as const,
   },
   ratingPlans: {
     all: ["rating-plans"] as const,

@@ -48,7 +48,7 @@ const AppLayout: React.FC<Props> = ({ children }) => {
     {
       key: "/groups",
       icon: <GroupOutlined />,
-      label: <Link to="/groups">Nhóm sản phẩm</Link>,
+      label: <Link to="/groups">Nhóm thiết bị</Link>,
     },
     {
       key: "/alerts",

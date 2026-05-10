@@ -1,6 +1,8 @@
 import type {
   AlertConfig,
+  BulkCheckResponse,
   QueryAlertParams,
+  QueryTriggeredParams,
   TriggeredAlertsResponse,
 } from "../types";
 import { apiClient } from "./client";
@@ -66,16 +68,27 @@ export const alertsApi = {
   },
 
   /**
-   * GET /alerts/triggered – SIMs currently exceeding thresholds
+   * GET /alerts/triggered – SIMs currently exceeding thresholds (unchecked only)
    */
-  getTriggered: async (params?: {
-    ratingPlanId?: number;
-  }): Promise<TriggeredAlertsResponse> => {
+  getTriggered: async (
+    params?: QueryTriggeredParams,
+  ): Promise<TriggeredAlertsResponse> => {
     const res = await apiClient.get<TriggeredAlertsResponse>(
       "/alerts/triggered",
-      {
-        params,
-      },
+      { params },
+    );
+    return res.data;
+  },
+
+  /**
+   * POST /alerts/triggered/bulk-check
+   */
+  bulkCheckAlerts: async (
+    phoneNumbers: string[],
+  ): Promise<BulkCheckResponse> => {
+    const res = await apiClient.post<BulkCheckResponse>(
+      "/alerts/triggered/bulk-check",
+      { phoneNumbers },
     );
     return res.data;
   },
