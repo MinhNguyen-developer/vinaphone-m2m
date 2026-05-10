@@ -1,6 +1,5 @@
 import type {
   PaginatedResponse,
-  SimBasic,
   SimCard,
   SimListParams,
   SimUsageHistoryResponse,
@@ -11,10 +10,10 @@ import { apiClient } from "./client";
 
 export const simsApi = {
   /**
-   * GET /sims/all – all SIMs without pagination (id, phoneNumber, ratingPlanName, productCode only)
+   * GET /sims/all – all SIMs without pagination (for export / pickers)
    */
-  getAll: async (): Promise<SimBasic[]> => {
-    const res = await apiClient.get<SimBasic[]>("/sims/all");
+  getAll: async (): Promise<SimCard[]> => {
+    const res = await apiClient.get<SimCard[]>("/sims/all");
     return res.data;
   },
 
@@ -121,6 +120,21 @@ export const simsApi = {
       requested: number;
       notFound: number;
     }>("/sims/bulk-cancel", { phoneNumbers });
+    return res.data;
+  },
+
+  /**
+   * POST /sims/bulk-reset
+   * Reset hàng loạt SIM theo số điện thoại (status→NEW, xóa lịch sử dữ liệu)
+   */
+  bulkResetSims: async (
+    phoneNumbers: string[],
+  ): Promise<{ reset: number; requested: number; notFound: number }> => {
+    const res = await apiClient.post<{
+      reset: number;
+      requested: number;
+      notFound: number;
+    }>("/sims/bulk-reset", { phoneNumbers });
     return res.data;
   },
 

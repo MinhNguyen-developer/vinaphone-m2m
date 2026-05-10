@@ -6,7 +6,7 @@ import type {
   TablePaginationConfig,
   SorterResult,
 } from "antd/es/table/interface";
-import type { MonthlyDataUsage, SimCard } from "../types";
+import type { MonthlyDataUsage, SimCard, SimGroup } from "../types";
 import { useMasterSims } from "../hooks/useMasterSims";
 import SimGroupMembersModal from "../components/SIM/SimGroupMembersModal";
 import SimMasterMembersModal from "../components/SIM/SimMasterMembersModal";
@@ -18,6 +18,7 @@ import { ServerSelect } from "../components/ServerSelect";
 import { type FilterField, useFilters } from "../hooks/useFilters";
 import { queryKeys } from "../hooks/queryKeys";
 import { ratingPlansApi } from "../api/rating-plans.api";
+import { groupsApi } from "../api/groups.api";
 
 const { Title, Text } = Typography;
 
@@ -29,6 +30,7 @@ const ALL_FILTER_KEYS = [
   "imsi",
   "contractCode",
   "ratingPlanId",
+  "groupId",
   "sort",
 ] as const;
 type FilterKey = (typeof ALL_FILTER_KEYS)[number];
@@ -128,6 +130,26 @@ const MasterSims: React.FC = () => {
         }),
         fromUrlParams: (p) => p.get("ratingPlanId") ?? undefined,
       },
+      {
+        filterKey: "groupId",
+        label: "Nhóm thiết bị",
+        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
+        render: (value, onChange) => (
+          <ServerSelect
+            queryKey={queryKeys.groups.all}
+            placeholder="Nhóm thiết bị"
+            value={(value as string) || undefined}
+            fetchFn={({ page, pageSize, search }) =>
+              groupsApi.getList({ page, pageSize, search })
+            }
+            onChange={(v) => onChange(v)}
+            allowClear
+            style={{ width: "100%" }}
+            getOptionValue={(g) => g.id}
+            getOptionLabel={(g) => g.name}
+          />
+        ),
+      },
       // Hidden — only for URL sync
       {
         filterKey: "sort",
@@ -169,6 +191,7 @@ const MasterSims: React.FC = () => {
       imsi: (filterValues.imsi as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
       ratingPlanId: toNum(filterValues.ratingPlanId),
+      groupId: (filterValues.groupId as string) || undefined,
       sort: (filterValues.sort as string) || undefined,
     };
   }, [filterValues, pagination]);
@@ -269,6 +292,52 @@ const MasterSims: React.FC = () => {
         ) : (
           <Text type="secondary">—</Text>
         ),
+    },
+    {
+      title: "Nhóm thiết bị",
+      key: "simGroups",
+      render: (_v, record) => {
+        const groups = (record.simGroups ?? []) as Partial<SimGroup>[];
+        if (!groups.length) return <Text type="secondary">—</Text>;
+        return (
+          <Space size={4} wrap>
+            {groups.map((g) => (
+              <Tag color="purple" key={g.group?.id ?? g.groupId}>
+                {g.group?.name}
+              </Tag>
+            ))}
+          </Space>
+        );
+      },
+    },
+    {
+      title: "Dung lượng sử dụng còn lại",
+      key: "remainingMB",
+      render: (_v, record) => {
+        const currentMonth = dayjs().format("YYYY-MM");
+        const currentUsage = record.monthlyDataUsages?.find(
+          (u) => u.month === currentMonth,
+        );
+        if (!currentUsage || currentUsage.totalData == null)
+          return <Text type="secondary">—</Text>;
+        const remaining =
+          (currentUsage.totalData ?? 0) - (currentUsage.dataUsedMB ?? 0);
+        return (
+          <Text
+            style={{
+              color:
+                remaining <= 0
+                  ? "#ff4d4f"
+                  : remaining < 100
+                    ? "#faad14"
+                    : undefined,
+              fontSize: 11,
+            }}
+          >
+            {formatNumber(remaining)} MB
+          </Text>
+        );
+      },
     },
     {
       title: "Dung lượng sử dụng (tháng)",

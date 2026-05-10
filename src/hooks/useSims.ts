@@ -104,6 +104,17 @@ export const useBulkCancelSims = () => {
   });
 };
 
+/** POST /sims/bulk-reset – reset hàng loạt SIM theo số điện thoại */
+export const useBulkResetSims = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (phoneNumbers: string[]) => simsApi.bulkResetSims(phoneNumbers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+
 /** PATCH /sims/:id/first-used-at */
 export const useUpdateFirstUsedAt = () => {
   const queryClient = useQueryClient();

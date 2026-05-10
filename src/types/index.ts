@@ -55,6 +55,26 @@ export interface QueryAlertParams {
   pageSize?: number;
 }
 
+export interface QueryTriggeredParams {
+  groupId?: string;
+  sort?: string;
+}
+
+export interface BulkCheckResult {
+  phoneNumber: string;
+  usedMB: number;
+  alertLabel: string;
+  thresholdMB: number;
+  groupNames: string[];
+}
+
+export interface BulkCheckResponse {
+  checked: number;
+  notFound: number;
+  notFoundPhones: string[];
+  results: BulkCheckResult[];
+}
+
 export interface MonthlyDataUsage {
   id: string;
   month: string;
@@ -219,6 +239,7 @@ export interface QueryMasterSimParams extends QueryPaginatedparams {
   contractCode?: string;
   ratingPlanId?: number;
   sort?: string;
+  groupId?: string;
 }
 
 export interface UsageHistoryParams {

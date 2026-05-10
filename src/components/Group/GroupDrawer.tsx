@@ -1,5 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Button, Drawer, Form, Input, Space, message } from "antd";
+import {
+  Button,
+  Divider,
+  Drawer,
+  Form,
+  Input,
+  Space,
+  Typography,
+  Upload,
+  message,
+} from "antd";
+import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import type { RcFile } from "antd/es/upload";
 import { useQuery } from "@tanstack/react-query";
 import type { GroupWithCount } from "../../types";
 import type { SimTransferItem } from "./TableTransfer";
@@ -10,6 +22,7 @@ import { groupsApi } from "../../api/groups.api";
 import { queryKeys } from "../../hooks/queryKeys";
 
 const { TextArea } = Input;
+const { Text } = Typography;
 
 interface GroupFormValues {
   name: string;
@@ -31,6 +44,7 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
 }) => {
   const [form] = Form.useForm<GroupFormValues>();
   const [targetKeys, setTargetKeys] = useState<string[]>([]);
+  const [phoneInput, setPhoneInput] = useState("");
 
   const { mutateAsync: createGroup, isPending: creating } = useCreateGroup();
   const { mutateAsync: updateGroup, isPending: updating } = useUpdateGroup();
@@ -79,7 +93,56 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
   const handleClose = () => {
     form.resetFields();
     setTargetKeys([]);
+    setPhoneInput("");
     onClose();
+  };
+
+  const handleCsvUpload = (file: RcFile): boolean => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? "";
+      const phones = text
+        .split(/[\n,;\r]+/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (!phones.length) return;
+      const phoneToId = new Map(allSims.map((s) => [s.phoneNumber, s.id]));
+      const found: string[] = [];
+      const notFound: string[] = [];
+      phones.forEach((p) => {
+        const id = phoneToId.get(p);
+        if (id) found.push(id);
+        else notFound.push(p);
+      });
+      setTargetKeys(Array.from(new Set([...targetKeys, ...found])));
+      if (found.length)
+        message.success(`Đã thêm ${found.length} SIM từ file vào nhóm`);
+      if (notFound.length)
+        message.warning(`Không tìm thấy: ${notFound.join(", ")}`);
+    };
+    reader.readAsText(file);
+    return false;
+  };
+
+  const handleAddByPhone = () => {
+    const phones = phoneInput
+      .split(/[\n,;]+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (!phones.length) return;
+    const phoneToId = new Map(allSims.map((s) => [s.phoneNumber, s.id]));
+    const found: string[] = [];
+    const notFound: string[] = [];
+    phones.forEach((p) => {
+      const id = phoneToId.get(p);
+      if (id) found.push(id);
+      else notFound.push(p);
+    });
+    setTargetKeys(Array.from(new Set([...targetKeys, ...found])));
+    setPhoneInput("");
+    if (found.length) message.success(`Đã thêm ${found.length} SIM vào nhóm`);
+    if (notFound.length)
+      message.warning(`Không tìm thấy: ${notFound.join(", ")}`);
   };
 
   const handleSubmit = async () => {
@@ -133,6 +196,49 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
         </Form.Item>
 
         <Form.Item label={`SIM trong nhóm (${targetKeys.length} đã chọn)`}>
+          <div style={{ marginBottom: 8 }}>
+            <Text strong>Tải lên file CSV</Text>
+            <Upload.Dragger
+              accept=".csv,.txt"
+              beforeUpload={handleCsvUpload}
+              showUploadList={false}
+              style={{ marginTop: 6, marginBottom: 8 }}
+            >
+              <p className="ant-upload-drag-icon">
+                <UploadOutlined />
+              </p>
+              <p className="ant-upload-text">
+                Kéo thả file vào đây hoặc click để chọn
+              </p>
+              <p className="ant-upload-hint">
+                File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại
+              </p>
+            </Upload.Dragger>
+            <Divider plain style={{ margin: "4px 0" }}>
+              hoặc nhập tay
+            </Divider>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Nhập số điện thoại (xuống dòng để nhập nhiều số) để thêm nhanh vào
+              nhóm:
+            </Text>
+            <TextArea
+              rows={3}
+              placeholder={"0987654321\n0912345678\n..."}
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              style={{ marginTop: 4, fontFamily: "monospace", fontSize: 12 }}
+            />
+            <Button
+              icon={<PlusOutlined />}
+              size="small"
+              style={{ marginTop: 6 }}
+              disabled={!phoneInput.trim()}
+              onClick={handleAddByPhone}
+            >
+              Thêm vào nhóm
+            </Button>
+          </div>
+          <Divider plain style={{ margin: "8px 0" }} />
           <TableTransfer
             dataSource={dataSource}
             targetKeys={targetKeys}
@@ -146,4 +252,3 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
 };
 
 export default GroupDrawer;
-

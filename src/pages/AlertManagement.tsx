@@ -14,8 +14,11 @@ import {
   Spin,
   Modal,
   message,
+  Divider,
+  Input,
+  Upload,
 } from "antd";
-import { type ColumnsType } from "antd/es/table";
+import { type ColumnsType, type SorterResult } from "antd/es/table/interface";
 import {
   BellFilled,
   BellOutlined,
@@ -24,12 +27,21 @@ import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
-import type { AlertConfig, TriggeredAlert } from "../types";
+import type { RcFile } from "antd/es/upload";
+import * as XLSX from "xlsx";
+import type {
+  AlertConfig,
+  BulkCheckResult,
+  SimGroup,
+  TriggeredAlert,
+} from "../types";
 import { formatMB } from "../utils";
 import SimStatusBadge from "../components/SIM/SimStatusBadge";
 import {
   useAlerts,
+  useBulkCheckAlerts,
   useCheckAlert,
   useTriggeredAlerts,
   useDeleteAlert,
@@ -43,8 +55,162 @@ import { useQuery } from "@tanstack/react-query";
 import { ratingPlansApi } from "../api/rating-plans.api";
 import { queryKeys } from "../hooks/queryKeys";
 import { ServerSelect } from "../components/ServerSelect";
+import { groupsApi } from "../api/groups.api";
 
 const { Title, Text } = Typography;
+
+// ─── Bulk Check Modal ──────────────────────────────────────────────────────────────
+
+interface BulkCheckModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+const BulkCheckModal: React.FC<BulkCheckModalProps> = ({ open, onClose }) => {
+  const [textValue, setTextValue] = useState("");
+  const [parsed, setParsed] = useState<string[]>([]);
+  const [lastResult, setLastResult] = useState<BulkCheckResult[] | null>(null);
+  const { mutate: bulkCheck, isPending } = useBulkCheckAlerts();
+
+  const parsePhoneNumbers = (raw: string): string[] =>
+    raw
+      .split(/[\n,;]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+  const handleTextChange = (val: string) => {
+    setTextValue(val);
+    setParsed(parsePhoneNumbers(val));
+  };
+
+  const handleCsvUpload = (file: RcFile): boolean => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? "";
+      const numbers = parsePhoneNumbers(text);
+      setTextValue(numbers.join("\n"));
+      setParsed(numbers);
+    };
+    reader.readAsText(file);
+    return false;
+  };
+
+  const handleExportCsv = () => {
+    if (!lastResult?.length) return;
+    const rows = lastResult.map((r) => ({
+      "Số điện thoại": r.phoneNumber,
+      "Dung lượng đã dùng (MB)": r.usedMB,
+      "Cảnh báo": r.alertLabel,
+      "Ngưỡng (MB)": r.thresholdMB,
+      "Nhóm thiết bị": r.groupNames.join(", "),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Checked");
+    XLSX.writeFile(wb, `bulk-check-${Date.now()}.xlsx`);
+  };
+
+  const handleConfirm = () => {
+    if (parsed.length === 0) {
+      message.warning("Vui lòng nhập ít nhất 1 số điện thoại!");
+      return;
+    }
+    bulkCheck(parsed, {
+      onSuccess: (result) => {
+        setLastResult(result.results);
+        if (result.checked > 0) {
+          message.success(`Đã đánh dấu đã kiểm tra ${result.checked} cảnh báo`);
+        }
+        if (result.notFound > 0) {
+          message.warning(
+            `${result.notFound} số điện thoại không tìm thấy: ${result.notFoundPhones.join(", ")}`,
+            6,
+          );
+        }
+        setTextValue("");
+        setParsed([]);
+        // Keep modal open so user can export CSV
+      },
+      onError: () => message.error("Kiểm tra thất bại!"),
+    });
+  };
+
+  const handleClose = () => {
+    setTextValue("");
+    setParsed([]);
+    setLastResult(null);
+    onClose();
+  };
+
+  return (
+    <Modal
+      title="Kiểm tra hàng loạt"
+      open={open}
+      onOk={handleConfirm}
+      onCancel={handleClose}
+      okText="Xác nhận kiểm tra"
+      okButtonProps={{ loading: isPending }}
+      cancelText="Đóng"
+      width={520}
+      footer={(_, { OkBtn, CancelBtn }) => (
+        <Space>
+          <CancelBtn />
+          {lastResult && lastResult.length > 0 && (
+            <Button icon={<UploadOutlined />} onClick={handleExportCsv}>
+              Xuất Excel
+            </Button>
+          )}
+          <OkBtn />
+        </Space>
+      )}
+    >
+      <Space orientation="vertical" style={{ width: "100%" }} size={12}>
+        <Alert
+          type="info"
+          showIcon
+          title="Đánh dấu các SIM theo số điện thoại là đã kiểm tra trong tất cả cảnh báo đang hoạt động."
+        />
+        <div>
+          <Text strong>Tải lên file CSV</Text>
+          <Upload.Dragger
+            accept=".csv,.txt"
+            beforeUpload={handleCsvUpload}
+            showUploadList={false}
+            style={{ marginTop: 6 }}
+          >
+            <p className="ant-upload-drag-icon">
+              <UploadOutlined />
+            </p>
+            <p className="ant-upload-text">
+              Kéo thả file vào đây hoặc click để chọn
+            </p>
+            <p className="ant-upload-hint">
+              File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại
+            </p>
+          </Upload.Dragger>
+        </div>
+        <Divider plain style={{ margin: "4px 0" }}>
+          hoặc nhập tay
+        </Divider>
+        <div>
+          <Text strong>Danh sách số điện thoại</Text>
+          <Input.TextArea
+            rows={4}
+            placeholder={"0987654321\n0912345678\n..."}
+            value={textValue}
+            onChange={(e) => handleTextChange(e.target.value)}
+            style={{ marginTop: 6, fontFamily: "monospace", fontSize: 13 }}
+          />
+          {parsed.length > 0 && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Đã nhận {parsed.length} số điện thoại
+            </Text>
+          )}
+        </div>
+      </Space>
+    </Modal>
+  );
+};
 
 /** Fetches a single rating plan by numeric ID and renders a Tag. Cached per ID. */
 const RatingPlanCell: React.FC<{ ratingPlanId: number }> = ({
@@ -92,12 +258,27 @@ const AlertManagement: React.FC = () => {
     useAlerts(alertQueryParams);
   const alerts = alertsResponse?.data ?? [];
   const alertTotal = alertsResponse?.total ?? 0;
-  const [filterRatingPlanId, setFilterRatingPlanId] = useState<number>();
+  const [filterGroupId, setFilterGroupId] = useState<string | undefined>();
+  const [triggeredSort, setTriggeredSort] = useState<string | undefined>();
   const { data: triggeredData, isLoading: triggeredLoading } =
-    useTriggeredAlerts(filterRatingPlanId);
+    useTriggeredAlerts({ groupId: filterGroupId, sort: triggeredSort });
   const checkAlert = useCheckAlert();
   const toggleAlert = useToggleAlert();
   const { mutateAsync: deleteAlert, isPending: deleting } = useDeleteAlert();
+  const [bulkCheckOpen, setBulkCheckOpen] = useState(false);
+
+  const handleTriggeredTableChange = (
+    _pagination: unknown,
+    _filters: unknown,
+    sorter: SorterResult<TriggeredAlert> | SorterResult<TriggeredAlert>[],
+  ) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    if (s.columnKey === "used" && s.order) {
+      setTriggeredSort(`usedMB:${s.order === "ascend" ? "asc" : "desc"}`);
+    } else {
+      setTriggeredSort(undefined);
+    }
+  };
 
   // ── Drawer state ──────────────────────────────────────────────────────
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -236,6 +417,23 @@ const AlertManagement: React.FC = () => {
       },
     },
     {
+      title: "Nhóm thiết bị",
+      key: "groups",
+      render: (_: unknown, r: TriggeredAlert) => {
+        const groups = (r.sim.simGroups ?? []) as Partial<SimGroup>[];
+        if (!groups.length) return <Text type="secondary">—</Text>;
+        return (
+          <Space size={4} wrap>
+            {groups.map((g) => (
+              <Tag color="purple" key={g.group?.id ?? g.groupId}>
+                {g.group?.name}
+              </Tag>
+            ))}
+          </Space>
+        );
+      },
+    },
+    {
       title: "Số điện thoại",
       key: "phone",
       fixed: "left",
@@ -268,6 +466,12 @@ const AlertManagement: React.FC = () => {
     {
       title: "Dung lượng đã dùng",
       key: "used",
+      sorter: true,
+      sortOrder: triggeredSort?.startsWith("usedMB:")
+        ? triggeredSort.endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
       render: (_: unknown, r: TriggeredAlert) => (
         <Text style={{ color: "#ff4d4f" }} strong>
           {formatMB(r.sim.usedMB)}
@@ -304,21 +508,24 @@ const AlertManagement: React.FC = () => {
           <Card style={{ marginBottom: 12 }}>
             <Space wrap>
               <ServerSelect
-                queryKey={queryKeys.ratingPlans.list()}
-                fetchFn={({ search, page, pageSize }) =>
-                  ratingPlansApi.getList({ search, page, pageSize })
+                queryKey={queryKeys.groups.all}
+                fetchFn={({ page, pageSize, search }) =>
+                  groupsApi.getList({ page, pageSize, search })
                 }
-                placeholder="Lọc theo gói cước"
-                value={filterRatingPlanId}
-                onChange={setFilterRatingPlanId}
+                placeholder="Lọc theo nhóm thiết bị"
+                value={filterGroupId}
+                onChange={setFilterGroupId}
                 style={{ width: 240 }}
-                showSearch={{
-                  optionFilterProp: "label",
-                }}
                 allowClear
-                getOptionLabel={(rp) => rp.name + `(${rp.code})`}
-                getOptionValue={(rp) => rp.ratingPlanId}
+                getOptionLabel={(g) => g.name}
+                getOptionValue={(g) => g.id}
               />
+              <Button
+                icon={<CheckCircleOutlined />}
+                onClick={() => setBulkCheckOpen(true)}
+              >
+                Kiểm tra hàng loạt
+              </Button>
               {checkedCount > 0 && (
                 <Tag color="green">
                   ✓ Đã kiểm tra: {checkedCount}/{triggeredList.length}
@@ -349,6 +556,7 @@ const AlertManagement: React.FC = () => {
                 scroll={{ x: "max-content" }}
                 columns={triggeredColumns}
                 rowClassName={(r) => (r.checked ? "row-checked" : "")}
+                onChange={handleTriggeredTableChange}
               />
             </Card>
           )}
@@ -430,6 +638,11 @@ const AlertManagement: React.FC = () => {
         mode={drawerMode}
         editingAlert={editingAlert}
         onClose={() => setDrawerOpen(false)}
+      />
+
+      <BulkCheckModal
+        open={bulkCheckOpen}
+        onClose={() => setBulkCheckOpen(false)}
       />
 
       <Modal
