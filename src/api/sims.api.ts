@@ -1,6 +1,5 @@
 import type {
   PaginatedResponse,
-  SimBasic,
   SimCard,
   SimListParams,
   SimUsageHistoryResponse,
