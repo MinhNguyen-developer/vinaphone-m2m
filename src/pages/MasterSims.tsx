@@ -26,7 +26,6 @@ const { Title, Text } = Typography;
 
 const ALL_FILTER_KEYS = [
   "search",
-  "msisdn",
   "imsi",
   "contractCode",
   "ratingPlanId",
@@ -52,30 +51,22 @@ const MasterSims: React.FC = () => {
   const [modalSimId, setModalSimId] = useState<string | null>(null);
   const [groupModalId, setGroupModalId] = useState<string | null>(null);
   const [groupModalName, setGroupModalName] = useState<string | null>(null);
+  const [clientSort, setClientSort] = useState<{
+    key: string;
+    order: "ascend" | "descend";
+  } | null>(null);
 
   // ── Filter fields ─────────────────────────────────────────────────────
   const filterFields = useMemo<FilterField<FilterKey, any>[]>(
     () => [
       {
         filterKey: "search",
-        label: "Từ khóa",
+        label: "Số điện thoại",
         colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
         render: (value, onChange) => (
           <DebouncedInput
             placeholder="Tìm kiếm SĐT"
             prefix={<SearchOutlined />}
-            value={(value as string) ?? ""}
-            onChange={onChange}
-          />
-        ),
-      },
-      {
-        filterKey: "msisdn",
-        label: "MSISDN",
-        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
-        render: (value, onChange) => (
-          <DebouncedInput
-            placeholder="MSISDN"
             value={(value as string) ?? ""}
             onChange={onChange}
           />
@@ -154,6 +145,7 @@ const MasterSims: React.FC = () => {
       {
         filterKey: "sort",
         label: "Sắp xếp",
+        hidden: true,
         render: () => null,
       },
     ],
@@ -187,7 +179,6 @@ const MasterSims: React.FC = () => {
       page: pagination.current,
       pageSize: pagination.pageSize,
       search: (filterValues.search as string) || undefined,
-      msisdn: (filterValues.msisdn as string) || undefined,
       imsi: (filterValues.imsi as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
       ratingPlanId: toNum(filterValues.ratingPlanId),
@@ -199,6 +190,29 @@ const MasterSims: React.FC = () => {
   const { data: { data: members = [], total } = {}, isLoading } =
     useMasterSims(queryParams);
 
+  const currentMonth = dayjs().format("YYYY-MM");
+  const displayMembers = useMemo(() => {
+    if (!clientSort) return members;
+    const dir = clientSort.order === "ascend" ? 1 : -1;
+    return [...members].sort((a, b) => {
+      if (clientSort.key === "remainingMB") {
+        const getRemaining = (r: SimCard) => {
+          const u = r.monthlyDataUsages?.find((x) => x.month === currentMonth);
+          if (!u || u.totalData == null) return -Infinity;
+          return (u.totalData ?? 0) - (u.dataUsedMB ?? 0);
+        };
+        return (getRemaining(a) - getRemaining(b)) * dir;
+      }
+      if (clientSort.key === "currentUsedMB") {
+        const getUsed = (r: SimCard) =>
+          r.monthlyDataUsages?.find((x) => x.month === currentMonth)
+            ?.dataUsedMB ?? -Infinity;
+        return (getUsed(a) - getUsed(b)) * dir;
+      }
+      return 0;
+    });
+  }, [members, clientSort, currentMonth]);
+
   // ── Table change (pagination + sort) ─────────────────────────────────
   const handleTableChange = (
     newPagination: TablePaginationConfig,
@@ -207,6 +221,14 @@ const MasterSims: React.FC = () => {
   ) => {
     setPagination(newPagination);
     const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    if (s.columnKey === "remainingMB" || s.columnKey === "currentUsedMB") {
+      setClientSort(
+        s.order ? { key: String(s.columnKey), order: s.order } : null,
+      );
+      setFilterValue("sort", "");
+      return;
+    }
+    setClientSort(null);
     const sortValue =
       s.columnKey && s.order
         ? `${String(s.columnKey)}:${s.order === "ascend" ? "asc" : "desc"}`
@@ -309,12 +331,15 @@ const MasterSims: React.FC = () => {
           </Space>
         );
       },
+      sorter: true,
+      sortOrder: sortOrder("simGroups"),
     },
     {
       title: "Dung lượng sử dụng còn lại",
       key: "remainingMB",
+      sorter: true,
+      sortOrder: clientSort?.key === "remainingMB" ? clientSort.order : null,
       render: (_v, record) => {
-        const currentMonth = dayjs().format("YYYY-MM");
         const currentUsage = record.monthlyDataUsages?.find(
           (u) => u.month === currentMonth,
         );
@@ -342,11 +367,10 @@ const MasterSims: React.FC = () => {
     {
       title: "Dung lượng sử dụng (tháng)",
       dataIndex: "monthlyDataUsages",
-      key: "monthlyDataUsages",
+      key: "currentUsedMB",
       sorter: true,
-      sortOrder: sortOrder("usedMB"),
+      sortOrder: clientSort?.key === "currentUsedMB" ? clientSort.order : null,
       render: (v?: MonthlyDataUsage[]) => {
-        const currentMonth = dayjs().format("YYYY-MM");
         const currentUsage = v?.find((u) => u.month === currentMonth);
         return currentUsage ? (
           <Text style={{ fontSize: 11 }}>
@@ -415,7 +439,7 @@ const MasterSims: React.FC = () => {
           title={() => (
             <Title level={5}>{`Tổng: ${total ?? 0} thuê bao`}</Title>
           )}
-          dataSource={members}
+          dataSource={displayMembers}
           columns={columns}
           scroll={{ x: "max-content" }}
           rowKey="id"

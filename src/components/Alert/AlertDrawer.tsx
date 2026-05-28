@@ -17,6 +17,7 @@ import { ServerSelect } from "../ServerSelect";
 import { simsApi } from "../../api/sims.api";
 import { groupsApi } from "../../api/groups.api";
 import { ratingPlansApi } from "../../api/rating-plans.api";
+import { simCodesApi } from "../../api/simCodes.api";
 import { queryKeys } from "../../hooks/queryKeys";
 
 export interface AlertDrawerProps {
@@ -26,13 +27,14 @@ export interface AlertDrawerProps {
   onClose: () => void;
 }
 
-type ScopeType = "all" | "sim" | "group" | "ratingPlanId";
+type ScopeType = "all" | "sim" | "group" | "ratingPlanId" | "simCode";
 
 function detectScope(a: AlertConfig | null): ScopeType {
   if (!a) return "all";
   if (a.simId) return "sim";
   if (a.groupId) return "group";
   if (a.ratingPlanId) return "ratingPlanId";
+  if (a.simCodeLabel) return "simCode";
   return "all";
 }
 
@@ -61,6 +63,7 @@ const AlertDrawer: React.FC<AlertDrawerProps> = ({
         simId: editingAlert.simId,
         groupId: editingAlert.groupId,
         productCode: editingAlert.productCode,
+        simCodeLabel: editingAlert.simCodeLabel ?? undefined,
         active: editingAlert.active,
       });
     } else {
@@ -77,6 +80,7 @@ const AlertDrawer: React.FC<AlertDrawerProps> = ({
       simId: undefined,
       groupId: undefined,
       productCode: undefined,
+      simCodeLabel: undefined,
     });
   };
 
@@ -96,6 +100,7 @@ const AlertDrawer: React.FC<AlertDrawerProps> = ({
       groupId: scopeType === "group" ? values.groupId : undefined,
       ratingPlanId:
         scopeType === "ratingPlanId" ? values.ratingPlanId : undefined,
+      simCodeLabel: scopeType === "simCode" ? values.simCodeLabel : undefined,
     };
     if (mode === "create") {
       await createAlert(dto);
@@ -164,6 +169,7 @@ const AlertDrawer: React.FC<AlertDrawerProps> = ({
               { label: "SIM", value: "sim" },
               { label: "Nhóm thiết bị", value: "group" },
               { label: "Gói cước", value: "ratingPlanId" },
+              { label: "Mã SIM", value: "simCode" },
             ]}
           />
         </Form.Item>
@@ -233,6 +239,31 @@ const AlertDrawer: React.FC<AlertDrawerProps> = ({
               getOptionValue={(rp) => rp.ratingPlanId}
               getOptionLabel={(rp) => `${rp.name} - (${rp.code})`}
               placeholder="Tìm gói cước"
+              style={{ width: "100%" }}
+              allowClear
+            />
+          </Form.Item>
+        )}
+
+        {/* SimCode picker */}
+        {scopeType === "simCode" && (
+          <Form.Item
+            name="simCodeLabel"
+            label="Mã SIM"
+            rules={[{ required: true, message: "Vui lòng chọn mã SIM" }]}
+          >
+            <ServerSelect
+              queryKey={[...queryKeys.simCodes.all, "alert-picker"]}
+              fetchFn={({ search, page, pageSize }) =>
+                simCodesApi
+                  .getList({ search, page, pageSize })
+                  .then((r) => ({ data: r.data, total: r.total }))
+              }
+              getOptionValue={(sc) => sc.code}
+              getOptionLabel={(sc) =>
+                sc.description ? `${sc.code} — ${sc.description}` : sc.code
+              }
+              placeholder="Tìm mã SIM"
               style={{ width: "100%" }}
               allowClear
             />

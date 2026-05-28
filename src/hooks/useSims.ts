@@ -138,3 +138,15 @@ export const useUpdateSimNote = () => {
     },
   });
 };
+
+/** Generic PATCH /sims/:id */
+export const usePatchSim = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      simsApi.patchSim(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};

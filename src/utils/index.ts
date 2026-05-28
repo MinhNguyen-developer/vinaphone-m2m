@@ -26,6 +26,23 @@ export function getUsageColor(percent: number): string {
 }
 
 /**
+ * Get color based on remaining progress
+ */
+export function getProgressRemainingColor({
+  total,
+  used,
+}: {
+  total: number;
+  used: number;
+}): string {
+  const remaining = total - used;
+  const pct = total > 0 ? remaining / total : 0;
+  if (remaining === 0) return "#ff4d4f";
+  if (pct <= 0.2) return "#faad14";
+  return "#52c41a";
+}
+
+/**
  * Get sim status color
  */
 export function getSimStatusColor(status: number): string {

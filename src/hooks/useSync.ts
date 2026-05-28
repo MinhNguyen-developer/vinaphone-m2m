@@ -41,8 +41,28 @@ export function useSync() {
     onError: () => message.error("Không thể kích hoạt đồng bộ nhóm thuê bao."),
   });
 
-  const isAnyPending =
-    syncSims.isPending || syncRatingPlans.isPending || syncGroupSims.isPending;
+  const syncMonthlyUsage = useMutation({
+    mutationFn: syncApi.triggerMonthlyUsage,
+    onSuccess: () => {
+      message.success(
+        "Đồng bộ dung lượng tháng đã được kích hoạt. Quá trình có thể mất vài phút.",
+      );
+    },
+    onError: () =>
+      message.error("Không thể kích hoạt đồng bộ dung lượng tháng."),
+  });
 
-  return { syncSims, syncRatingPlans, syncGroupSims, isAnyPending };
+  const isAnyPending =
+    syncSims.isPending ||
+    syncRatingPlans.isPending ||
+    syncGroupSims.isPending ||
+    syncMonthlyUsage.isPending;
+
+  return {
+    syncSims,
+    syncRatingPlans,
+    syncGroupSims,
+    syncMonthlyUsage,
+    isAnyPending,
+  };
 }

@@ -1,17 +1,18 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider } from 'antd';
-import viVN from 'antd/locale/vi_VN';
-import AppLayout from './components/Layout/AppLayout';
-import Dashboard from './pages/Dashboard';
-import SimManagement from './pages/SimManagement';
-import ProductGroups from './pages/ProductGroups';
-import AlertManagement from './pages/AlertManagement';
-import MasterSims from './pages/MasterSims';
-import UsageHistory from './pages/UsageHistory';
-import Login from './pages/Login';
-import { useAuthStore } from './store/useAuthStore';
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ConfigProvider } from "antd";
+import viVN from "antd/locale/vi_VN";
+import AppLayout from "./components/Layout/AppLayout";
+import Dashboard from "./pages/Dashboard";
+import SimManagement from "./pages/SimManagement";
+import ProductGroups from "./pages/ProductGroups";
+import SimCodes from "./pages/SimCodes";
+import AlertManagement from "./pages/AlertManagement";
+import MasterSims from "./pages/MasterSims";
+import UsageHistory from "./pages/UsageHistory";
+import Login from "./pages/Login";
+import { useAuthStore } from "./store/useAuthStore";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,7 +24,9 @@ const queryClient = new QueryClient({
 });
 
 /** Redirects unauthenticated users to /login */
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const token = useAuthStore((s) => s.token);
   if (!token) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -36,7 +39,7 @@ const App: React.FC = () => {
         locale={viVN}
         theme={{
           token: {
-            colorPrimary: '#1890ff',
+            colorPrimary: "#1890ff",
             borderRadius: 8,
           },
         }}
@@ -53,6 +56,7 @@ const App: React.FC = () => {
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/sims" element={<SimManagement />} />
                       <Route path="/groups" element={<ProductGroups />} />
+                      <Route path="/sim-codes" element={<SimCodes />} />
                       <Route path="/alerts" element={<AlertManagement />} />
                       <Route path="/master-sims" element={<MasterSims />} />
                       <Route path="/history" element={<UsageHistory />} />

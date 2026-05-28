@@ -50,4 +50,10 @@ export const queryKeys = {
     list: (params?: GroupSimListParams) =>
       ["group-sims", "list", params ?? {}] as const,
   },
+  simCodes: {
+    all: ["sim-codes"] as const,
+    list: (params?: { page?: number; pageSize?: number; search?: string }) =>
+      ["sim-codes", "list", params ?? {}] as const,
+    simIds: (id: string) => ["sim-codes", id, "sim-ids"] as const,
+  },
 } as const;
