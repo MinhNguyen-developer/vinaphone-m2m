@@ -45,8 +45,10 @@ import {
   useBulkCancelSims,
   useBulkResetSims,
   useUpdateSimNote,
+  usePatchSim,
 } from "../hooks/useSims";
 import { simsApi } from "../api/sims.api";
+import { simCodesApi } from "../api/simCodes.api";
 import { useAlerts, useTriggeredAlerts } from "../hooks/useAlerts";
 import { formatMB, getUsageColor } from "../utils";
 import SimMasterMembersModal from "../components/SIM/SimMasterMembersModal";
@@ -83,9 +85,11 @@ const ALL_COLUMN_KEYS = [
   "usedMB",
   "activated",
   "note",
+  "simCode",
   "status",
   "simGroups",
   "action",
+  "vinaphoneActivatedAt",
 ] as const;
 type ColumnKey = (typeof ALL_COLUMN_KEYS)[number];
 
@@ -98,8 +102,10 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   sogMembership: "Loại gói cước",
   sogMembers: "Thuê bao thành viên",
   usedMB: "Dung lượng",
-  activated: "Kích hoạt",
+  activated: "Ngày kích hoạt",
+  vinaphoneActivatedAt: "Ngày kích hoạt (Vinaphone)",
   note: "Ghi chú",
+  simCode: "Mã SIM",
   status: "Trạng thái",
   simGroups: "Nhóm thiết bị",
   action: "Hành động",
@@ -125,7 +131,6 @@ const STORAGE_KEY = "sim-column-visibility";
 
 const ALL_FILTER_KEYS = [
   "search",
-  "msisdn",
   "imsi",
   "contractCode",
   "ratingPlanId",
@@ -189,6 +194,10 @@ const ALL_EXPORT_COLUMNS: ExportColumn[] = ALL_COLUMN_KEYS.map((key) => {
           .map((g) => g.group?.name)
           .filter(Boolean)
           .join(", ");
+      case "vinaphoneActivatedAt":
+        return s.vinaphoneActivatedAt ?? "";
+      case "simCode":
+        return s.simCodeLabel ?? "";
       case "action":
         return "";
     }
@@ -562,26 +571,12 @@ const SimManagement: React.FC = () => {
     () => [
       {
         filterKey: "search",
-        label: "Từ khóa",
-
+        label: "Số điện thoại",
         colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
         render: (value, onChange) => (
           <DebouncedInput
-            placeholder="Tìm kiếm (SĐT/IMSI/hợp đồng…)"
+            placeholder="Tìm kiếm SĐT"
             prefix={<SearchOutlined />}
-            value={(value as string) ?? ""}
-            onChange={onChange}
-          />
-        ),
-      },
-      {
-        filterKey: "msisdn",
-        label: "MSISDN",
-
-        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
-        render: (value, onChange) => (
-          <DebouncedInput
-            placeholder="MSISDN"
             value={(value as string) ?? ""}
             onChange={onChange}
           />
@@ -665,7 +660,7 @@ const SimManagement: React.FC = () => {
         render: (value, onChange) => (
           <Select
             style={{ width: "100%" }}
-            value={value as string}
+            value={Number.isNaN(+value) ? value : Number(value)}
             onChange={(v) => onChange(v)}
             placeholder="Trạng thái"
             allowClear
@@ -673,6 +668,7 @@ const SimManagement: React.FC = () => {
               label: o.label,
               value: o.value,
             }))}
+            popupMatchSelectWidth={160}
           />
         ),
         toUrlParams: (v) => ({ status: v != null ? String(v) : undefined }),
@@ -746,27 +742,28 @@ const SimManagement: React.FC = () => {
             style={{ width: "100%" }}
             value={value as [dayjs.Dayjs | null, dayjs.Dayjs | null]}
             onChange={(v) => onChange(v ? [v[0], v[1]] : [null, null])}
-            placeholder={["Từ ngày kích hoạt", "Đến ngày"]}
+            placeholder={["Ngày kích hoạt từ", "Đến ngày"]}
             format="DD/MM/YYYY"
           />
         ),
         toUrlParams: (v) => {
           const dr = v as [dayjs.Dayjs | null, dayjs.Dayjs | null];
           return {
-            dateFrom: dr[0]?.format("YYYY-MM-DD"),
-            dateTo: dr[1]?.format("YYYY-MM-DD"),
+            activeDateFrom: dr[0]?.format("YYYY-MM-DD"),
+            activeDateTo: dr[1]?.format("YYYY-MM-DD"),
           };
         },
         fromUrlParams: (p) =>
           [
-            p.get("dateFrom") ? dayjs(p.get("dateFrom")!) : null,
-            p.get("dateTo") ? dayjs(p.get("dateTo")!) : null,
+            p.get("activeDateFrom") ? dayjs(p.get("activeDateFrom")!) : null,
+            p.get("activeDateTo") ? dayjs(p.get("activeDateTo")!) : null,
           ] as [dayjs.Dayjs | null, dayjs.Dayjs | null],
       },
       // Hidden field — not shown in toolbox, only used for URL sync
       {
         filterKey: "sort",
         label: "Sắp xếp",
+        hidden: true,
         render: () => null,
       },
     ],
@@ -803,14 +800,13 @@ const SimManagement: React.FC = () => {
     ];
     return {
       search: (filterValues.search as string) || undefined,
-      msisdn: (filterValues.msisdn as string) || undefined,
       imsi: (filterValues.imsi as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
       status: toNum(filterValues.status),
       ratingPlanId: toNum(filterValues.ratingPlanId),
       simType: toNum(filterValues.simType),
-      dateFrom: dr[0]?.format("YYYY-MM-DD"),
-      dateTo: dr[1]?.format("YYYY-MM-DD"),
+      activeDateFrom: dr[0]?.format("YYYY-MM-DD"),
+      activeDateTo: dr[1]?.format("YYYY-MM-DD"),
       pageSize: pagination.pageSize,
       page: pagination.current,
       groupName: (filterValues.groupName as string) || undefined,
@@ -847,6 +843,7 @@ const SimManagement: React.FC = () => {
   const { mutate: cancelSim } = useBulkCancelSims();
   const { mutate: resetSim } = useBulkResetSims();
   const { mutate: updateNote } = useUpdateSimNote();
+  const { mutate: patchSim } = usePatchSim();
   const [bulkCancelOpen, setBulkCancelOpen] = useState(false);
   const [bulkResetOpen, setBulkResetOpen] = useState(false);
 
@@ -1019,7 +1016,7 @@ const SimManagement: React.FC = () => {
     },
     {
       colKey: "activated",
-      title: "Kích hoạt",
+      title: "Ngày kích hoạt",
       dataIndex: "firstUsedAt",
       key: "firstUsedAt",
       width: 145,
@@ -1033,6 +1030,29 @@ const SimManagement: React.FC = () => {
       },
       sorter: true,
       sortOrder: (filterValues.sort as string)?.startsWith("firstUsedAt:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
+    },
+    {
+      colKey: "vinaphoneActivatedAt",
+      title: "Ngày kích hoạt (Vinaphone)",
+      dataIndex: "vinaphoneActivatedAt",
+      key: "vinaphoneActivatedAt",
+      width: 225,
+      render: (v, r) => {
+        const d = v ?? r.vinaphoneActivatedAt;
+        return d ? (
+          dayjs(d).format("DD/MM/YYYY")
+        ) : (
+          <Text type="secondary">Chưa có</Text>
+        );
+      },
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith(
+        "vinaphoneActivatedAt:",
+      )
         ? (filterValues.sort as string).endsWith(":asc")
           ? "ascend"
           : "descend"
@@ -1130,6 +1150,37 @@ const SimManagement: React.FC = () => {
         : null,
     },
     {
+      colKey: "simCode",
+      title: "Mã SIM",
+      key: "simCode",
+      width: 160,
+      render: (_v, record) => (
+        <ServerSelect
+          style={{ width: "100%" }}
+          value={record.simCode?.code ?? undefined}
+          queryKey={["sim-codes", "select"]}
+          fetchFn={async (params) => {
+            const res = await simCodesApi.getList({
+              page: params.page,
+              pageSize: params.pageSize,
+              search: params.search,
+            });
+            return { data: res.data, total: res.total };
+          }}
+          getOptionValue={(item) => item.code}
+          getOptionLabel={(item) => item.code}
+          placeholder="Chọn mã SIM"
+          allowClear
+          onChange={(val) => {
+            patchSim(
+              { id: record.id, data: { simCodeLabel: val ?? null } },
+              { onError: () => message.error("Cập nhật mã SIM thất bại!") },
+            );
+          }}
+        />
+      ),
+    },
+    {
       colKey: "action",
       title: "Hành động",
       key: "action",
@@ -1215,7 +1266,16 @@ const SimManagement: React.FC = () => {
   const handleExportAllDB = async () => {
     setExportAllLoading(true);
     try {
-      const all = await simsApi.getAll();
+      const total = simsData?.total ?? 0;
+      if (total === 0) {
+        message.warning("Không có dữ liệu để xuất!");
+        return;
+      }
+      const { data: all } = await simsApi.getList({
+        ...queryParams,
+        page: 1,
+        pageSize: total,
+      });
       setExportData(all);
       setExportModalOpen(true);
     } catch {
@@ -1258,16 +1318,34 @@ const SimManagement: React.FC = () => {
 
       {/* Table */}
       <Card>
-        <Flex wrap align="baseline" justify="space-between">
-          <Text style={{ display: "block", marginBottom: 10 }}>
-            Hiển thị <strong>{sims.length}</strong> /{" "}
-            {simsData?.total ?? sims.length} SIM
+        <Flex
+          wrap
+          align="baseline"
+          justify="space-between"
+          gap={10}
+          style={{ marginBottom: 10 }}
+        >
+          <Space>
+            <Text style={{ display: "block" }}>
+              Hiển thị <strong>{sims.length}</strong> /{" "}
+              {simsData?.total ?? sims.length} SIM
+            </Text>
+
             {selectedRowKeys.length > 0 && (
-              <Tag color="blue" style={{ marginLeft: 10 }}>
-                Đang chọn {selectedRowKeys.length}
-              </Tag>
+              <>
+                <Tag color="blue" style={{ marginLeft: 10 }}>
+                  Đang chọn {selectedRowKeys.length}
+                </Tag>
+                <Tag
+                  color="default"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedRowKeys([])}
+                >
+                  Huỷ chọn
+                </Tag>
+              </>
             )}
-          </Text>
+          </Space>
           <Space wrap>
             {!!selectedRowKeys.length && (
               <Button
@@ -1309,13 +1387,13 @@ const SimManagement: React.FC = () => {
                 Xuất ({sims.length})
               </Button>
             </Tooltip>
-            <Tooltip title="Xuất toàn bộ SIM trong cơ sở dữ liệu">
+            <Tooltip title="Xuất toàn bộ dữ liệu theo bộ lọc hiện tại">
               <Button
                 icon={<DownloadOutlined />}
                 loading={exportAllLoading}
                 onClick={handleExportAllDB}
               >
-                Xuất toàn bộ SIM
+                Xuất toàn bộ dữ liệu
               </Button>
             </Tooltip>
             <Tooltip title="Xuất các SIM đang được tích chọn">

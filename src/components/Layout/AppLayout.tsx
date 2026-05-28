@@ -9,6 +9,7 @@ import {
   HistoryOutlined,
   MenuOutlined,
   LogoutOutlined,
+  TagOutlined,
 } from "@ant-design/icons";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTriggeredAlerts } from "../../hooks/useAlerts";
@@ -49,6 +50,11 @@ const AppLayout: React.FC<Props> = ({ children }) => {
       key: "/groups",
       icon: <GroupOutlined />,
       label: <Link to="/groups">Nhóm thiết bị</Link>,
+    },
+    {
+      key: "/sim-codes",
+      icon: <TagOutlined />,
+      label: <Link to="/sim-codes">Mã SIM</Link>,
     },
     {
       key: "/alerts",

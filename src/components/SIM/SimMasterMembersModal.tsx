@@ -12,7 +12,7 @@ import {
 } from "antd";
 import { CrownOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { formatMB, getUsageColor } from "../../utils";
+import { formatMB, getProgressRemainingColor } from "../../utils";
 import SimStatusBadge from "./SimStatusBadge";
 import { useSimDetail } from "../../hooks/useSims";
 import type { ColumnsType } from "antd/lib/table";
@@ -86,19 +86,25 @@ const SimMasterMembersModal: React.FC<Props> = ({ simId, onClose }) => {
           <Space orientation="vertical" size={2} style={{ width: "100%" }}>
             <Text
               style={{
-                color: r.pct != null ? getUsageColor(r.pct) : undefined,
+                color: getProgressRemainingColor({
+                  total: r.total ?? 0,
+                  used: r.used,
+                }),
               }}
             >
               {r.total
                 ? `${r.used.toLocaleString()} / ${r.total.toLocaleString()}`
                 : r.used.toLocaleString()}
             </Text>
-            {r.pct != null && (
+            {r.pct != null && r.total !== null && (
               <Progress
                 percent={r.pct}
                 size="small"
                 showInfo={false}
-                strokeColor={r.pct >= 90 ? "#ff4d4f" : "#1890ff"}
+                strokeColor={getProgressRemainingColor({
+                  total: r.total!,
+                  used: r.used,
+                })}
               />
             )}
           </Space>

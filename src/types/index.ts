@@ -43,6 +43,7 @@ export interface AlertConfig {
   groupId?: string; // if set on a group
   productCode?: string; // if set on a product code
   ratingPlanId?: number; // if set on a rating plan
+  simCodeLabel?: string | null; // if set on a sim code
   thresholdMB: number;
   label: string;
   active: boolean;
@@ -57,6 +58,7 @@ export interface QueryAlertParams {
 
 export interface QueryTriggeredParams {
   groupId?: string;
+  simCodeLabel?: string;
   sort?: string;
 }
 
@@ -145,6 +147,7 @@ export interface SimCard {
   simType?: number;
   serviceType?: number | null;
   firstUsedAt?: string;
+  vinaphoneActivatedAt?: string;
   confirmedAt?: string;
   createdAt: string;
   note?: string;
@@ -161,6 +164,8 @@ export interface SimCard {
   alerts?: AlertConfig[];
   monthlyDataUsages?: MonthlyDataUsage[];
   simGroups?: Partial<SimGroup>[];
+  simCode?: { id: string; code: string } | null;
+  simCodeLabel?: string | null;
 }
 
 export interface SimGroupMember {

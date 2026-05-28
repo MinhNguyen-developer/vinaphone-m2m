@@ -56,6 +56,7 @@ import { ratingPlansApi } from "../api/rating-plans.api";
 import { queryKeys } from "../hooks/queryKeys";
 import { ServerSelect } from "../components/ServerSelect";
 import { groupsApi } from "../api/groups.api";
+import { simCodesApi } from "../api/simCodes.api";
 
 const { Title, Text } = Typography;
 
@@ -259,9 +260,16 @@ const AlertManagement: React.FC = () => {
   const alerts = alertsResponse?.data ?? [];
   const alertTotal = alertsResponse?.total ?? 0;
   const [filterGroupId, setFilterGroupId] = useState<string | undefined>();
+  const [filterSimCodeLabel, setFilterSimCodeLabel] = useState<
+    string | undefined
+  >();
   const [triggeredSort, setTriggeredSort] = useState<string | undefined>();
   const { data: triggeredData, isLoading: triggeredLoading } =
-    useTriggeredAlerts({ groupId: filterGroupId, sort: triggeredSort });
+    useTriggeredAlerts({
+      groupId: filterGroupId,
+      simCodeLabel: filterSimCodeLabel,
+      sort: triggeredSort,
+    });
   const checkAlert = useCheckAlert();
   const toggleAlert = useToggleAlert();
   const { mutateAsync: deleteAlert, isPending: deleting } = useDeleteAlert();
@@ -434,6 +442,16 @@ const AlertManagement: React.FC = () => {
       },
     },
     {
+      title: "Mã SIM",
+      key: "simCode",
+      render: (_: unknown, r: TriggeredAlert) =>
+        r.sim.simCode ? (
+          <Tag color="orange">{r.sim.simCode.code}</Tag>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
       title: "Số điện thoại",
       key: "phone",
       fixed: "left",
@@ -450,7 +468,7 @@ const AlertManagement: React.FC = () => {
       ),
     },
     {
-      title: "Mã sản phẩm",
+      title: "Gói cước",
       key: "code",
       render: (_: unknown, r: TriggeredAlert) => (
         <Tag color="blue">{r.sim.productCode}</Tag>
@@ -519,6 +537,19 @@ const AlertManagement: React.FC = () => {
                 allowClear
                 getOptionLabel={(g) => g.name}
                 getOptionValue={(g) => g.id}
+              />
+              <ServerSelect
+                queryKey={[...queryKeys.simCodes.all, "triggered-filter"]}
+                fetchFn={({ page, pageSize, search }) =>
+                  simCodesApi.getList({ page, pageSize, search })
+                }
+                placeholder="Lọc theo mã SIM"
+                value={filterSimCodeLabel}
+                onChange={setFilterSimCodeLabel}
+                style={{ width: 200 }}
+                allowClear
+                getOptionLabel={(sc) => sc.code}
+                getOptionValue={(sc) => sc.code}
               />
               <Button
                 icon={<CheckCircleOutlined />}

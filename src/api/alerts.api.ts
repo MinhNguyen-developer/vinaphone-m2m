@@ -14,6 +14,7 @@ export interface AlertFormValues {
   groupId?: string;
   productCode?: string;
   ratingPlanId?: number;
+  simCodeLabel?: string;
   active?: boolean;
 }
 

@@ -17,4 +17,9 @@ export const syncApi = {
 
   triggerGroupSims: () =>
     apiClient.post<SyncTriggerResponse>("/sync/group-sims").then((r) => r.data),
+
+  triggerMonthlyUsage: () =>
+    apiClient
+      .post<SyncTriggerResponse>("/sync/monthly-usage")
+      .then((r) => r.data),
 };

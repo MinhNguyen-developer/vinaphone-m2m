@@ -21,6 +21,8 @@ export interface FilterField<TKey extends string, V = unknown> {
   render: (value: V, onChange: (v: V) => void) => React.ReactNode;
   /** Antd grid column spans for the filter bar layout. */
   colSpan?: ColSpan;
+  /** When true, this field is never shown in the filter bar or the toolbox checkbox list. */
+  hidden?: boolean;
   /**
    * Serialize this field's value to one or more URL params.
    * Keys with `undefined` values are omitted from the URL.
@@ -169,7 +171,7 @@ export function useFilters<TKey extends string>({
   const filterBar = (
     <Flex wrap gap={16}>
       {fields
-        .filter((f) => visibleFilterKeys.includes(f.filterKey))
+        .filter((f) => !f.hidden && visibleFilterKeys.includes(f.filterKey))
         .map((field) => {
           return (
             <div key={field.filterKey}>
@@ -199,15 +201,13 @@ export function useFilters<TKey extends string>({
           gap: "4px 0",
         }}
       >
-        {visibleFilterKeys.map((key) => {
-          const field = fields.find((f) => f.filterKey === key);
-          if (!field) return null;
-          return (
+        {fields
+          .filter((f) => !f.hidden)
+          .map((field) => (
             <Checkbox key={field.filterKey} value={field.filterKey}>
               {field.label}
             </Checkbox>
-          );
-        })}
+          ))}
       </Checkbox.Group>
       <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Button

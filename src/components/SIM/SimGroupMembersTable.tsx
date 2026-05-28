@@ -12,42 +12,15 @@ import formatNumber from "../../utils/formatNumber";
 
 const { Text } = Typography;
 
-const columns: ColumnsType<SimCard> = [
-  {
-    title: "Số điện thoại",
-    dataIndex: "phoneNumber",
-    key: "phoneNumber",
-    render: (v) => <Text strong>{v}</Text>,
-  },
-  {
-    title: "Dung lượng",
-    dataIndex: "usedMB",
-    key: "usedMB",
-    sorter: true,
-    render: (v) =>
-      v != null ? (
-        <Text style={{ fontSize: 11 }}>{formatNumber(v)} MB</Text>
-      ) : (
-        <Text type="secondary">—</Text>
-      ),
-  },
-  {
-    title: "Trạng thái",
-    dataIndex: "status",
-    key: "status",
-    render: (v) => {
-      if (v == null) return <Text type="secondary">—</Text>;
-      const s = VIN_STATUS_OPTIONS.find((o) => o.value === v);
-      return s ? (
-        <Tag color={s.color} icon={s.icon}>
-          {s.label}
-        </Tag>
-      ) : (
-        <Tag>{v}</Tag>
-      );
-    },
-  },
-];
+function getSortOrder(
+  sort: string | undefined,
+  key: string,
+): "ascend" | "descend" | null {
+  if (!sort) return null;
+  const [field, dir] = sort.split(":");
+  if (field !== key) return null;
+  return dir === "asc" ? "ascend" : "descend";
+}
 
 interface Props {
   groupId: string;
@@ -94,6 +67,81 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
 
   const { data, isLoading } = useSimGroupMembers(groupId, queryParams);
 
+  const columns: ColumnsType<SimCard> = [
+    {
+      title: "Số điện thoại",
+      dataIndex: "phoneNumber",
+      key: "phoneNumber",
+      sorter: true,
+      sortOrder: getSortOrder(sort, "phoneNumber"),
+      render: (v) => <Text strong>{v}</Text>,
+    },
+    {
+      title: "IMSI",
+      dataIndex: "imsi",
+      key: "imsi",
+      sorter: true,
+      sortOrder: getSortOrder(sort, "imsi"),
+      render: (v) =>
+        v ? (
+          <Text style={{ fontSize: 11, fontFamily: "monospace" }}>{v}</Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "Mã SIM",
+      key: "simCode",
+      sorter: true,
+      sortOrder: getSortOrder(sort, "simCodeLabel"),
+      render: (_: unknown, r: SimCard) =>
+        r.simCode ? (
+          <Tag color="orange">{r.simCode.code}</Tag>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "Dung lượng",
+      dataIndex: "usedMB",
+      key: "usedMB",
+      sorter: true,
+      sortOrder: getSortOrder(sort, "usedMB"),
+      render: (v) =>
+        v != null ? (
+          <Text style={{ fontSize: 11 }}>{formatNumber(v)} MB</Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      render: (v) => {
+        if (v == null) return <Text type="secondary">—</Text>;
+        const s = VIN_STATUS_OPTIONS.find((o) => o.value === v);
+        return s ? (
+          <Tag color={s.color} icon={s.icon}>
+            {s.label}
+          </Tag>
+        ) : (
+          <Tag>{v}</Tag>
+        );
+      },
+      sorter: true,
+      sortOrder: getSortOrder(sort, "status"),
+    },
+    {
+      title: "Ghi chú",
+      dataIndex: "note",
+      key: "note",
+      sorter: true,
+      sortOrder: getSortOrder(sort, "note"),
+      render: (v) => (v ? <Text>{v}</Text> : <Text type="secondary">—</Text>),
+    },
+  ];
+
   return (
     <div>
       <Input
@@ -115,7 +163,7 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
       <Table<SimCard>
         dataSource={data?.data}
         columns={columns}
-        rowKey={(r) => r.id}
+        rowKey={(r) => r.id ?? r.phoneNumber}
         loading={isLoading}
         size="small"
         pagination={{ ...pagination, total: data?.total }}
@@ -125,9 +173,9 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
             ? sorter[0]
             : (sorter as SorterResult<SimCard>);
           if (s.columnKey && s.order) {
-            setSort(
-              `${String(s.columnKey)}:${s.order === "ascend" ? "asc" : "desc"}`,
-            );
+            const key =
+              s.columnKey === "simCode" ? "simCodeLabel" : String(s.columnKey);
+            setSort(`${key}:${s.order === "ascend" ? "asc" : "desc"}`);
           } else {
             setSort(undefined);
           }

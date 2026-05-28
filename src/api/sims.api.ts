@@ -145,4 +145,12 @@ export const simsApi = {
     const res = await apiClient.patch<SimCard>(`/sims/${id}/note`, { note });
     return res.data;
   },
+
+  patchSim: async (
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<SimCard> => {
+    const res = await apiClient.patch<SimCard>(`/sims/${id}`, data);
+    return res.data;
+  },
 };

@@ -193,6 +193,7 @@ const UsageHistory: React.FC = () => {
       {
         filterKey: "sort",
         label: "Sắp xếp",
+        hidden: true,
         render: () => null,
       },
     ],
