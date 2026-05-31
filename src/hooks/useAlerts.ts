@@ -22,6 +22,17 @@ export const useTriggeredAlerts = (params?: QueryTriggeredParams) =>
     refetchInterval: 60_000,
   });
 
+/** POST /alerts/bulk-check-status – set status=2 on selected alert configs */
+export const useBulkCheckStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => alertsApi.bulkCheckStatus(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
+    },
+  });
+};
+
 /** POST /alerts/triggered/bulk-check */
 export const useBulkCheckAlerts = () => {
   const queryClient = useQueryClient();

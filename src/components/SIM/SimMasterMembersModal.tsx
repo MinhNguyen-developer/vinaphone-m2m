@@ -9,6 +9,7 @@ import {
   Space,
   Spin,
   Progress,
+  Tooltip,
 } from "antd";
 import { CrownOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -17,6 +18,7 @@ import SimStatusBadge from "./SimStatusBadge";
 import { useSimDetail } from "../../hooks/useSims";
 import type { ColumnsType } from "antd/lib/table";
 import SimGroupMembersTable from "./SimGroupMembersTable";
+import type { MonthlyDataUsage } from "../../types";
 
 const { Title, Text } = Typography;
 
@@ -155,7 +157,13 @@ const SimMasterMembersModal: React.FC<Props> = ({ simId, onClose }) => {
               {sim?.phoneNumber}
             </Descriptions.Item>
             <Descriptions.Item label="IMSI">
-              {sim?.imsi ?? "—"}
+              {sim?.imsi ? (
+                <Typography.Text copyable={{ text: sim.imsi }}>
+                  {sim.imsi.slice(-10)}
+                </Typography.Text>
+              ) : (
+                "—"
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="Mã hợp đồng">
               {sim?.contractCode ?? "—"}
@@ -173,6 +181,109 @@ const SimMasterMembersModal: React.FC<Props> = ({ simId, onClose }) => {
               </Descriptions.Item>
             )}
           </Descriptions>
+
+          {/* Monthly usage history table */}
+          {sim?.monthlyDataUsages && sim.monthlyDataUsages.length > 0 && (
+            <Card
+              size="small"
+              title="Lịch sử dung lượng theo tháng"
+              style={{ marginBottom: 16 }}
+            >
+              <Table<MonthlyDataUsage>
+                dataSource={[...sim.monthlyDataUsages].sort((a, b) =>
+                  b.month.localeCompare(a.month),
+                )}
+                rowKey="id"
+                size="small"
+                pagination={false}
+                scroll={{ x: 700 }}
+                columns={[
+                  {
+                    title: "Tháng",
+                    dataIndex: "month",
+                    key: "month",
+                    width: 90,
+                    fixed: "left",
+                    render: (v: string) => <Tag>{v}</Tag>,
+                  },
+                  {
+                    title: "Data (MB)",
+                    key: "data",
+                    width: 160,
+                    render: (_v, r) => {
+                      const used = r.dataUsedMB ?? 0;
+                      const total = r.totalData;
+                      if (!total)
+                        return <Text>{used.toLocaleString()} MB</Text>;
+                      const pct = Math.min(
+                        Math.round((used / total) * 100),
+                        100,
+                      );
+                      return (
+                        <Tooltip
+                          title={`${used.toLocaleString()} / ${total.toLocaleString()} MB`}
+                        >
+                          <Progress
+                            percent={pct}
+                            size="small"
+                            strokeColor={getProgressRemainingColor({
+                              total,
+                              used,
+                            })}
+                            format={() =>
+                              `${used.toLocaleString()}/${total.toLocaleString()}`
+                            }
+                          />
+                        </Tooltip>
+                      );
+                    },
+                  },
+                  {
+                    title: "SMS nội mạng",
+                    key: "smsNoi",
+                    width: 130,
+                    render: (_v, r) =>
+                      r.totalSmsNoiMang != null ? (
+                        <Text>
+                          {(r.smsNoiMangUsed ?? 0).toLocaleString()} /{" "}
+                          {r.totalSmsNoiMang.toLocaleString()}
+                        </Text>
+                      ) : (
+                        <Text type="secondary">—</Text>
+                      ),
+                  },
+                  {
+                    title: "SMS ngoại mạng",
+                    key: "smsNgoai",
+                    width: 140,
+                    render: (_v, r) =>
+                      r.totalSmsNgoaiMang != null ? (
+                        <Text>
+                          {(r.smsNgoaiMangUsed ?? 0).toLocaleString()} /{" "}
+                          {r.totalSmsNgoaiMang.toLocaleString()}
+                        </Text>
+                      ) : (
+                        <Text type="secondary">—</Text>
+                      ),
+                  },
+                  {
+                    title: "SMS quốc tế",
+                    key: "smsQuocTe",
+                    width: 120,
+                    render: (_v, r) =>
+                      r.totalSmsQuocTe != null ? (
+                        <Text>
+                          {(r.smsQuocTeUsed ?? 0).toLocaleString()} /{" "}
+                          {r.totalSmsQuocTe.toLocaleString()}
+                        </Text>
+                      ) : (
+                        <Text type="secondary">—</Text>
+                      ),
+                  },
+                ]}
+              />
+            </Card>
+          )}
 
           {/* SOG group table */}
           {sogRow && (

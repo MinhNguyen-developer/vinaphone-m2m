@@ -115,6 +115,29 @@ export const useBulkResetSims = () => {
   });
 };
 
+/** POST /sims/bulk-lock – tạm khoá hàng loạt SIM theo số điện thoại */
+export const useBulkLockSims = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (phoneNumbers: string[]) => simsApi.bulkLockSims(phoneNumbers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+
+/** POST /sims/bulk-pending-cancel – chuyển trạng thái Chờ huỷ hàng loạt */
+export const useBulkPendingCancelSims = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (phoneNumbers: string[]) =>
+      simsApi.bulkPendingCancelSims(phoneNumbers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+
 /** PATCH /sims/:id/first-used-at */
 export const useUpdateFirstUsedAt = () => {
   const queryClient = useQueryClient();

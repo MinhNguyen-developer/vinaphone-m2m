@@ -1,6 +1,8 @@
 import {
   CheckCircleOutlined,
+  ClockCircleOutlined,
   ExclamationCircleOutlined,
+  LockOutlined,
   StopOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
@@ -29,5 +31,17 @@ export const VIN_STATUS_OPTIONS = [
     label: "Đã hủy",
     color: "#ff4d4f",
     icon: <StopOutlined />,
+  },
+  {
+    value: 5,
+    label: "Tạm khoá",
+    color: "#fa8c16",
+    icon: <LockOutlined />,
+  },
+  {
+    value: 6,
+    label: "Chờ huỷ",
+    color: "#ff7a45",
+    icon: <ClockCircleOutlined />,
   },
 ];

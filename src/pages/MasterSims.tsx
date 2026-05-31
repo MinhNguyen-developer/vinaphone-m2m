@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Card, Table, Tag, Typography, Space, Button } from "antd";
+import {
+  Card,
+  Table,
+  Tag,
+  Typography,
+  Space,
+  Button,
+  Progress,
+  Tooltip,
+} from "antd";
 import { SearchOutlined, TeamOutlined } from "@ant-design/icons";
 import type {
   ColumnsType,
@@ -12,6 +21,7 @@ import SimGroupMembersModal from "../components/SIM/SimGroupMembersModal";
 import SimMasterMembersModal from "../components/SIM/SimMasterMembersModal";
 import dayjs from "dayjs";
 import formatNumber from "../utils/formatNumber";
+import { getProgressRemainingColor } from "../utils";
 import { DebouncedInput } from "../components/DebouncedInput";
 import { CustomTableFilter } from "../components/CustomTableFilter";
 import { ServerSelect } from "../components/ServerSelect";
@@ -350,12 +360,10 @@ const MasterSims: React.FC = () => {
         return (
           <Text
             style={{
-              color:
-                remaining <= 0
-                  ? "#ff4d4f"
-                  : remaining < 100
-                    ? "#faad14"
-                    : undefined,
+              color: getProgressRemainingColor({
+                total: currentUsage.totalData,
+                used: currentUsage.dataUsedMB ?? 0,
+              }),
               fontSize: 11,
             }}
           >
@@ -372,13 +380,28 @@ const MasterSims: React.FC = () => {
       sortOrder: clientSort?.key === "currentUsedMB" ? clientSort.order : null,
       render: (v?: MonthlyDataUsage[]) => {
         const currentUsage = v?.find((u) => u.month === currentMonth);
-        return currentUsage ? (
-          <Text style={{ fontSize: 11 }}>
-            {formatNumber(currentUsage.dataUsedMB)} /{" "}
-            {formatNumber(currentUsage.totalData)} MB
-          </Text>
-        ) : (
-          <Text type="secondary">—</Text>
+        if (!currentUsage) return <Text type="secondary">—</Text>;
+        const used = currentUsage.dataUsedMB ?? 0;
+        const total = currentUsage.totalData;
+        if (!total)
+          return <Text style={{ fontSize: 11 }}>{formatNumber(used)} MB</Text>;
+        const pct = Math.min(Math.round((used / total) * 100), 100);
+        return (
+          <Tooltip title={`${formatNumber(used)} / ${formatNumber(total)} MB`}>
+            <Progress
+              percent={pct}
+              size="small"
+              strokeColor={getProgressRemainingColor({ total, used })}
+              format={() => (
+                <span
+                  style={{ color: getProgressRemainingColor({ total, used }) }}
+                >
+                  {formatNumber(used)}/{formatNumber(total)}
+                </span>
+              )}
+              style={{ minWidth: 140 }}
+            />
+          </Tooltip>
         );
       },
     },

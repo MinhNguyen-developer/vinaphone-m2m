@@ -138,6 +138,32 @@ export const simsApi = {
     return res.data;
   },
 
+  bulkLockSims: async (
+    phoneNumbers: string[],
+  ): Promise<{ locked: number; requested: number; notFound: number }> => {
+    const res = await apiClient.post<{
+      locked: number;
+      requested: number;
+      notFound: number;
+    }>("/sims/bulk-lock", { phoneNumbers });
+    return res.data;
+  },
+
+  bulkPendingCancelSims: async (
+    phoneNumbers: string[],
+  ): Promise<{
+    pendingCancelled: number;
+    requested: number;
+    notFound: number;
+  }> => {
+    const res = await apiClient.post<{
+      pendingCancelled: number;
+      requested: number;
+      notFound: number;
+    }>("/sims/bulk-pending-cancel", { phoneNumbers });
+    return res.data;
+  },
+
   /**
    * PATCH /sims/:id/note
    */
