@@ -20,6 +20,8 @@ export const SimStatus = {
   ACTIVE: 2,
   CONFIRMED: 3,
   CANCELLED: 4,
+  SUSPENDED: 5,
+  PENDING_CANCEL: 6,
 } as const;
 export type SimStatus = (typeof SimStatus)[keyof typeof SimStatus];
 
@@ -46,12 +48,14 @@ export interface AlertConfig {
   simCodeLabel?: string | null; // if set on a sim code
   thresholdMB: number;
   label: string;
-  active: boolean;
+  /** 1 = Mới (active), 2 = Đã kiểm tra */
+  status: number;
 }
 
 export interface QueryAlertParams {
   label?: string;
-  active?: boolean;
+  /** 1 = Mới, 2 = Đã kiểm tra */
+  status?: number;
   page?: number;
   pageSize?: number;
 }
@@ -75,6 +79,11 @@ export interface BulkCheckResponse {
   notFound: number;
   notFoundPhones: string[];
   results: BulkCheckResult[];
+}
+
+export interface BulkCheckStatusResponse {
+  checked: number;
+  requested: number;
 }
 
 export interface MonthlyDataUsage {

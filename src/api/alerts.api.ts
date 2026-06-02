@@ -1,6 +1,7 @@
 import type {
   AlertConfig,
   BulkCheckResponse,
+  BulkCheckStatusResponse,
   QueryAlertParams,
   QueryTriggeredParams,
   TriggeredAlertsResponse,
@@ -15,7 +16,8 @@ export interface AlertFormValues {
   productCode?: string;
   ratingPlanId?: number;
   simCodeLabel?: string;
-  active?: boolean;
+  /** 1 = Mới, 2 = Đã kiểm tra */
+  status?: number;
 }
 
 export const alertsApi = {
@@ -77,6 +79,17 @@ export const alertsApi = {
     const res = await apiClient.get<TriggeredAlertsResponse>(
       "/alerts/triggered",
       { params },
+    );
+    return res.data;
+  },
+
+  /**
+   * POST /alerts/bulk-check-status – bulk mark AlertConfigs as Checked (status 1 → 2)
+   */
+  bulkCheckStatus: async (ids: string[]): Promise<BulkCheckStatusResponse> => {
+    const res = await apiClient.post<BulkCheckStatusResponse>(
+      "/alerts/bulk-check-status",
+      { ids },
     );
     return res.data;
   },

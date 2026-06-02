@@ -6,11 +6,9 @@ import {
   Typography,
   Alert,
   Tabs,
-  Switch,
   Select,
   Button,
   Space,
-  Tooltip,
   Spin,
   Modal,
   message,
@@ -22,7 +20,6 @@ import { type ColumnsType, type SorterResult } from "antd/es/table/interface";
 import {
   BellFilled,
   BellOutlined,
-  CheckCircleFilled,
   CheckCircleOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -42,23 +39,76 @@ import SimStatusBadge from "../components/SIM/SimStatusBadge";
 import {
   useAlerts,
   useBulkCheckAlerts,
+  useBulkCheckStatus,
   useCheckAlert,
   useTriggeredAlerts,
   useDeleteAlert,
-  useToggleAlert,
 } from "../hooks/useAlerts";
 import { useSims } from "../hooks/useSims";
 import { useGroups } from "../hooks/useGroups";
 import AlertDrawer from "../components/Alert/AlertDrawer";
 import { DebouncedInput } from "../components/DebouncedInput";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ratingPlansApi } from "../api/rating-plans.api";
 import { queryKeys } from "../hooks/queryKeys";
 import { ServerSelect } from "../components/ServerSelect";
 import { groupsApi } from "../api/groups.api";
 import { simCodesApi } from "../api/simCodes.api";
+import { TableActions } from "../components/TableActions";
+import { alertsApi } from "../api/alerts.api";
 
 const { Title, Text } = Typography;
+
+// ─── Bulk Check Status Modal ───────────────────────────────────────────────────
+
+interface BulkCheckStatusModalProps {
+  open: boolean;
+  selectedIds: string[];
+  onClose: () => void;
+}
+
+const BulkCheckStatusModal: React.FC<BulkCheckStatusModalProps> = ({
+  open,
+  selectedIds,
+  onClose,
+}) => {
+  const { mutate: bulkCheckStatus, isPending } = useBulkCheckStatus();
+
+  const handleConfirm = () => {
+    bulkCheckStatus(selectedIds, {
+      onSuccess: (r) => {
+        if (r.checked > 0)
+          message.success(`Đã đánh dấu ${r.checked} cảnh báo là Đã kiểm tra`);
+        else
+          message.warning(
+            "Không có cảnh báo nào được cập nhật (có thể đã kiểm tra rồi)",
+          );
+        onClose();
+      },
+      onError: () => message.error("Đánh dấu thất bại!"),
+    });
+  };
+
+  return (
+    <Modal
+      title="Đánh dấu Đã kiểm tra"
+      open={open}
+      onOk={handleConfirm}
+      onCancel={onClose}
+      okText="Xác nhận"
+      okButtonProps={{ loading: isPending }}
+      cancelText="Đóng"
+    >
+      <p>
+        Bạn có chắc muốn đánh dấu <strong>{selectedIds.length} cảnh báo</strong>{" "}
+        là Đã kiểm tra không?
+      </p>
+      <p style={{ color: "#faad14" }}>
+        Lưu ý: Thao tác này chỉ đi một chiều (Mới → Đã kiểm tra).
+      </p>
+    </Modal>
+  );
+};
 
 // ─── Bulk Check Modal ──────────────────────────────────────────────────────────────
 
@@ -238,20 +288,15 @@ const AlertManagement: React.FC = () => {
 
   // ── Alert config filter + pagination state ────────────────────────────
   const [filterLabel, setFilterLabel] = useState("");
-  const [filterActive, setFilterActive] = useState<
-    "all" | "active" | "inactive"
-  >("all");
+  const [filterStatus, setFilterStatus] = useState<number | undefined>();
   const [alertPage, setAlertPage] = useState(1);
   const [alertPageSize, setAlertPageSize] = useState(20);
+  const [selectedAlertIds, setSelectedAlertIds] = useState<string[]>([]);
+  const [bulkCheckStatusOpen, setBulkCheckStatusOpen] = useState(false);
 
   const alertQueryParams = {
     label: filterLabel || undefined,
-    active:
-      filterActive === "active"
-        ? true
-        : filterActive === "inactive"
-          ? false
-          : undefined,
+    status: filterStatus,
     page: alertPage,
     pageSize: alertPageSize,
   };
@@ -271,7 +316,7 @@ const AlertManagement: React.FC = () => {
       sort: triggeredSort,
     });
   const checkAlert = useCheckAlert();
-  const toggleAlert = useToggleAlert();
+  const queryClient = useQueryClient();
   const { mutateAsync: deleteAlert, isPending: deleting } = useDeleteAlert();
   const [bulkCheckOpen, setBulkCheckOpen] = useState(false);
 
@@ -319,6 +364,13 @@ const AlertManagement: React.FC = () => {
   const triggeredList: TriggeredAlert[] = triggeredData?.data ?? [];
 
   const alertColumns: ColumnsType<AlertConfig> = [
+    {
+      title: "",
+      key: "select",
+      width: 40,
+      fixed: "left",
+      render: () => null, // handled by rowSelection
+    },
     { title: "Tên cảnh báo", dataIndex: "label", key: "label", fixed: "left" },
     {
       title: "Ngưỡng",
@@ -347,83 +399,60 @@ const AlertManagement: React.FC = () => {
       },
     },
     {
-      title: "Kích hoạt",
-      dataIndex: "active",
-      key: "active",
-      render: (v: boolean, record) => (
-        <Switch
-          checked={v}
-          size="small"
-          loading={toggleAlert.isPending}
-          onChange={() => toggleAlert.mutate(record.id)}
-        />
-      ),
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      width: 140,
+      render: (v: number) =>
+        v === 2 ? (
+          <Tag color="green">Đã kiểm tra</Tag>
+        ) : (
+          <Tag color="blue">Mới</Tag>
+        ),
     },
     {
       title: "Hành động",
       key: "actions",
-      width: 140,
+      width: 60,
+      fixed: "right",
       render: (_: unknown, record) => (
-        <Space>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(record)}
-          >
-            Sửa
-          </Button>
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => setDeleteTarget(record)}
-          >
-            Xoá
-          </Button>
-        </Space>
+        <TableActions
+          items={[
+            {
+              key: "edit",
+              label: "Sửa",
+              icon: <EditOutlined />,
+              onClick: () => openEdit(record),
+            },
+            {
+              key: "check",
+              label: "Đã kiểm tra",
+              icon: <CheckCircleOutlined />,
+              disabled: record.status === 2,
+              onClick: () =>
+                bulkCheckStatusFn([record.id], {
+                  onSuccess: (r) =>
+                    r.checked > 0
+                      ? message.success("Đã đánh dấu là Đã kiểm tra")
+                      : message.warning("Đã kiểm tra rồi"),
+                  onError: () => message.error("Thất bại!"),
+                }),
+            },
+            { key: "div", type: "divider" },
+            {
+              key: "delete",
+              label: "Xoá",
+              icon: <DeleteOutlined />,
+              danger: true,
+              onClick: () => setDeleteTarget(record),
+            },
+          ]}
+        />
       ),
     },
   ];
 
   const triggeredColumns: ColumnsType<TriggeredAlert> = [
-    {
-      title: "",
-      key: "checked",
-      width: 48,
-      fixed: "left",
-      render: (_: unknown, r: TriggeredAlert) => {
-        const done = r.checked;
-        return (
-          <Tooltip
-            title={done ? "Đánh dấu chưa kiểm tra" : "Đánh dấu đã kiểm tra"}
-          >
-            <Button
-              type="text"
-              loading={checkAlert.isPending}
-              icon={
-                done ? (
-                  <CheckCircleFilled
-                    style={{ color: "#52c41a", fontSize: 18 }}
-                  />
-                ) : (
-                  <CheckCircleOutlined
-                    style={{ color: "#bfbfbf", fontSize: 18 }}
-                  />
-                )
-              }
-              onClick={() => {
-                console.log(r);
-                checkAlert.mutate({
-                  simId: r.sim.id,
-                  alertId: r.alert.id,
-                  checked: !done,
-                });
-              }}
-            />
-          </Tooltip>
-        );
-      },
-    },
     {
       title: "Nhóm thiết bị",
       key: "groups",
@@ -508,9 +537,63 @@ const AlertManagement: React.FC = () => {
       key: "alertLabel",
       render: (_: unknown, r: TriggeredAlert) => r.alert.label,
     },
+    {
+      title: "Hành động",
+      key: "action",
+      fixed: "right",
+      width: 60,
+      render: (_: unknown, r: TriggeredAlert) => (
+        <TableActions
+          items={[
+            {
+              key: "check",
+              label: r.checked ? "Đã kiểm tra" : "Đánh dấu đã kiểm tra",
+              icon: <CheckCircleOutlined />,
+              disabled: r.checked,
+              onClick: () =>
+                checkAlert.mutate({
+                  simId: r.sim.id,
+                  alertId: r.alert.id,
+                  checked: true,
+                }),
+            },
+          ]}
+        />
+      ),
+    },
   ];
 
-  const checkedCount = triggeredList.filter((r) => r.checked).length;
+  const { mutate: bulkCheckStatusFn } = useBulkCheckStatus();
+
+  // ── Triggered bulk check ─────────────────────────────────────────────
+  const [selectedTriggeredKeys, setSelectedTriggeredKeys] = useState<string[]>(
+    [],
+  );
+  const [bulkCheckingTriggered, setBulkCheckingTriggered] = useState(false);
+
+  const handleBulkCheckTriggered = async () => {
+    if (!selectedTriggeredKeys.length) return;
+    setBulkCheckingTriggered(true);
+    try {
+      await Promise.all(
+        selectedTriggeredKeys.map((key) => {
+          const sepIdx = key.indexOf("|");
+          const simId = key.slice(0, sepIdx);
+          const alertId = key.slice(sepIdx + 1);
+          return alertsApi.checkAlert(simId, alertId, true);
+        }),
+      );
+      message.success(
+        `Đã đánh dấu ${selectedTriggeredKeys.length} cảnh báo là đã kiểm tra`,
+      );
+      setSelectedTriggeredKeys([]);
+      queryClient.invalidateQueries({ queryKey: ["alerts", "triggered"] });
+    } catch {
+      message.error("Đánh dấu thất bại!");
+    } finally {
+      setBulkCheckingTriggered(false);
+    }
+  };
 
   const items = [
     {
@@ -557,10 +640,15 @@ const AlertManagement: React.FC = () => {
               >
                 Kiểm tra hàng loạt
               </Button>
-              {checkedCount > 0 && (
-                <Tag color="green">
-                  ✓ Đã kiểm tra: {checkedCount}/{triggeredList.length}
-                </Tag>
+              {selectedTriggeredKeys.length > 0 && (
+                <Button
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  loading={bulkCheckingTriggered}
+                  onClick={handleBulkCheckTriggered}
+                >
+                  Đánh dấu đã kiểm tra ({selectedTriggeredKeys.length})
+                </Button>
               )}
             </Space>
           </Card>
@@ -582,12 +670,19 @@ const AlertManagement: React.FC = () => {
               />
               <Table
                 dataSource={triggeredList}
-                rowKey={(r) => `${r.sim.id}-${r.alert.id}`}
+                rowKey={(r) => `${r.sim.id}|${r.alert.id}`}
                 size="middle"
                 scroll={{ x: "max-content" }}
                 columns={triggeredColumns}
                 rowClassName={(r) => (r.checked ? "row-checked" : "")}
                 onChange={handleTriggeredTableChange}
+                rowSelection={{
+                  type: "checkbox",
+                  selectedRowKeys: selectedTriggeredKeys,
+                  getCheckboxProps: (r) => ({ disabled: r.checked }),
+                  onChange: (keys) =>
+                    setSelectedTriggeredKeys(keys as string[]),
+                }}
               />
             </Card>
           )}
@@ -621,18 +716,26 @@ const AlertManagement: React.FC = () => {
               style={{ width: 260 }}
             />
             <Select
-              value={filterActive}
+              value={filterStatus ?? "all"}
               onChange={(v) => {
-                setFilterActive(v);
+                setFilterStatus(v === "all" ? undefined : (v as number));
                 setAlertPage(1);
               }}
               style={{ width: 180 }}
               options={[
                 { label: "Tất cả", value: "all" },
-                { label: "Đang kích hoạt", value: "active" },
-                { label: "Đã tắt", value: "inactive" },
+                { label: "Mới", value: 1 },
+                { label: "Đã kiểm tra", value: 2 },
               ]}
             />
+            {selectedAlertIds.length > 0 && (
+              <Button
+                icon={<CheckCircleOutlined />}
+                onClick={() => setBulkCheckStatusOpen(true)}
+              >
+                Đánh dấu đã kiểm tra ({selectedAlertIds.length})
+              </Button>
+            )}
           </Space>
           <Table
             dataSource={alerts}
@@ -641,6 +744,11 @@ const AlertManagement: React.FC = () => {
             rowKey="id"
             size="middle"
             loading={alertsLoading}
+            rowSelection={{
+              type: "checkbox",
+              selectedRowKeys: selectedAlertIds,
+              onChange: (keys) => setSelectedAlertIds(keys as string[]),
+            }}
             pagination={{
               current: alertPage,
               pageSize: alertPageSize,
@@ -674,6 +782,15 @@ const AlertManagement: React.FC = () => {
       <BulkCheckModal
         open={bulkCheckOpen}
         onClose={() => setBulkCheckOpen(false)}
+      />
+
+      <BulkCheckStatusModal
+        open={bulkCheckStatusOpen}
+        selectedIds={selectedAlertIds}
+        onClose={() => {
+          setBulkCheckStatusOpen(false);
+          setSelectedAlertIds([]);
+        }}
       />
 
       <Modal

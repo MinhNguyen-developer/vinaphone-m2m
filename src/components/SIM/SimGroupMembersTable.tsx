@@ -1,12 +1,16 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Table, Tag, Typography, Input } from "antd";
+import { Table, Tag, Typography, Input, Select, message } from "antd";
 import type { TablePaginationConfig } from "antd";
 import type { SorterResult } from "antd/es/table/interface";
-import { SearchOutlined } from "@ant-design/icons";
+import { EditOutlined, SearchOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import debounce from "lodash/debounce";
 import type { QueryGroupMembersParams, SimCard } from "../../types";
-import { useSimGroupMembers } from "../../hooks/useSims";
+import {
+  useSimGroupMembers,
+  useUpdateSimNote,
+  usePatchSim,
+} from "../../hooks/useSims";
 import { VIN_STATUS_OPTIONS } from "../../utils/constants";
 import formatNumber from "../../utils/formatNumber";
 
@@ -36,6 +40,11 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
     showSizeChanger: true,
     pageSizeOptions: ["10", "20", "50"],
   });
+  // Track which row's status cell is in edit mode
+  const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
+
+  const { mutate: updateNote } = useUpdateSimNote();
+  const { mutate: patchSim } = usePatchSim();
 
   const applyDebounce = useMemo(
     () =>
@@ -75,6 +84,7 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
       sorter: true,
       sortOrder: getSortOrder(sort, "phoneNumber"),
       render: (v) => <Text strong>{v}</Text>,
+      fixed: "left",
     },
     {
       title: "IMSI",
@@ -82,9 +92,14 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
       key: "imsi",
       sorter: true,
       sortOrder: getSortOrder(sort, "imsi"),
-      render: (v) =>
+      render: (v: string | null) =>
         v ? (
-          <Text style={{ fontSize: 11, fontFamily: "monospace" }}>{v}</Text>
+          <Text
+            copyable={{ text: v }}
+            style={{ fontSize: 11, fontFamily: "monospace" }}
+          >
+            {v.slice(-10)}
+          </Text>
         ) : (
           <Text type="secondary">—</Text>
         ),
@@ -118,19 +133,67 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
       title: "Trạng thái",
       dataIndex: "status",
       key: "status",
-      render: (v) => {
-        if (v == null) return <Text type="secondary">—</Text>;
-        const s = VIN_STATUS_OPTIONS.find((o) => o.value === v);
-        return s ? (
-          <Tag color={s.color} icon={s.icon}>
-            {s.label}
-          </Tag>
-        ) : (
-          <Tag>{v}</Tag>
-        );
-      },
       sorter: true,
       sortOrder: getSortOrder(sort, "status"),
+      render: (v, record) => {
+        const isEditing = editingStatusId === record.id;
+        const opt = VIN_STATUS_OPTIONS.find((o) => o.value === v);
+
+        if (isEditing) {
+          return (
+            <Select
+              autoFocus
+              size="small"
+              defaultValue={v}
+              style={{ width: 150 }}
+              options={VIN_STATUS_OPTIONS.map((o) => ({
+                value: o.value,
+                label: (
+                  <span style={{ color: o.color }}>
+                    {o.icon} {o.label}
+                  </span>
+                ),
+              }))}
+              onChange={(next) => {
+                if (next !== v) {
+                  patchSim(
+                    { id: record.id, data: { status: next } },
+                    {
+                      onSuccess: () =>
+                        message.success("Đã cập nhật trạng thái"),
+                      onError: () =>
+                        message.error("Cập nhật trạng thái thất bại!"),
+                    },
+                  );
+                }
+                setEditingStatusId(null);
+              }}
+              onBlur={() => setEditingStatusId(null)}
+            />
+          );
+        }
+
+        return (
+          <span
+            style={{
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+            onClick={() => setEditingStatusId(record.id)}
+          >
+            {opt ? (
+              <Tag color={opt.color} icon={opt.icon}>
+                {opt.label}
+              </Tag>
+            ) : (
+              <Tag>{v ?? "—"}</Tag>
+            )}
+            <EditOutlined style={{ fontSize: 11, color: "#999" }} />
+          </span>
+        );
+      },
     },
     {
       title: "Ghi chú",
@@ -138,7 +201,25 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
       key: "note",
       sorter: true,
       sortOrder: getSortOrder(sort, "note"),
-      render: (v) => (v ? <Text>{v}</Text> : <Text type="secondary">—</Text>),
+      render: (v, record) => (
+        <Text
+          editable={{
+            tooltip: "Nhấn để sửa",
+            text: v ?? "",
+            onChange: (next) => {
+              const trimmed = next.trim() || null;
+              if ((trimmed ?? "") !== (v ?? "")) {
+                updateNote(
+                  { id: record.id, note: trimmed },
+                  { onError: () => message.error("Lưu ghi chú thất bại!") },
+                );
+              }
+            },
+          }}
+        >
+          {v || ""}
+        </Text>
+      ),
     },
   ];
 
@@ -166,6 +247,9 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
         rowKey={(r) => r.id ?? r.phoneNumber}
         loading={isLoading}
         size="small"
+        scroll={{
+          x: "max-content",
+        }}
         pagination={{ ...pagination, total: data?.total }}
         onChange={(pag, _filters, sorter) => {
           setPagination(pag);

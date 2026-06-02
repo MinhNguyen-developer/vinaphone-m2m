@@ -7,7 +7,6 @@ import {
   InputNumber,
   Radio,
   Space,
-  Switch,
   message,
 } from "antd";
 import type { AlertConfig } from "../../types";
@@ -64,12 +63,11 @@ const AlertDrawer: React.FC<AlertDrawerProps> = ({
         groupId: editingAlert.groupId,
         productCode: editingAlert.productCode,
         simCodeLabel: editingAlert.simCodeLabel ?? undefined,
-        active: editingAlert.active,
       });
     } else {
       setScopeType("all");
       form.resetFields();
-      form.setFieldsValue({ active: true, scopeType: "all" });
+      form.setFieldsValue({ scopeType: "all" });
     }
   }, [open, mode, editingAlert, form]);
 
@@ -95,7 +93,6 @@ const AlertDrawer: React.FC<AlertDrawerProps> = ({
     const dto: AlertFormValues = {
       label: values.label,
       thresholdMB: values.thresholdMB,
-      active: values.active,
       simId: scopeType === "sim" ? values.simId : undefined,
       groupId: scopeType === "group" ? values.groupId : undefined,
       ratingPlanId:
@@ -269,10 +266,6 @@ const AlertDrawer: React.FC<AlertDrawerProps> = ({
             />
           </Form.Item>
         )}
-
-        <Form.Item name="active" label="Kích hoạt" valuePropName="checked">
-          <Switch />
-        </Form.Item>
       </Form>
     </Drawer>
   );
