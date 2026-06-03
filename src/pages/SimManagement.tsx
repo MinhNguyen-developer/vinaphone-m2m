@@ -1178,14 +1178,16 @@ const SimManagement: React.FC = () => {
       dataIndex: "imsi",
       key: "imsi",
       width: 155,
-      render: (v: string | null) =>
-        v ? (
-          <Text copyable={{ text: v }} style={{ fontSize: 11 }}>
-            {v.slice(-10)}
+      render: (v: string | null) => {
+        const imsi = v?.slice(-10);
+        return v ? (
+          <Text copyable={{ text: imsi }} style={{ fontSize: 11 }}>
+            {imsi}
           </Text>
         ) : (
           <Text type="secondary">—</Text>
-        ),
+        );
+      },
       sorter: true,
       sortOrder: (filterValues.sort as string)?.startsWith("imsi:")
         ? (filterValues.sort as string).endsWith(":asc")
