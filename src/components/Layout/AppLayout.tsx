@@ -14,6 +14,7 @@ import {
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTriggeredAlerts } from "../../hooks/useAlerts";
 import { useAuthStore } from "../../store/useAuthStore";
+import ChatWidget from "../Chatbot/ChatWidget";
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -242,6 +243,7 @@ const AppLayout: React.FC<Props> = ({ children }) => {
           {children}
         </Content>
       </Layout>
+      <ChatWidget />
     </Layout>
   );
 };
