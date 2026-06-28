@@ -158,7 +158,7 @@ const SimMasterMembersModal: React.FC<Props> = ({ simId, onClose }) => {
             </Descriptions.Item>
             <Descriptions.Item label="IMSI">
               {sim?.imsi ? (
-                <Typography.Text copyable={{ text: sim.imsi }}>
+                <Typography.Text copyable={{ text: sim.imsi.slice(-10) }}>
                   {sim.imsi.slice(-10)}
                 </Typography.Text>
               ) : (

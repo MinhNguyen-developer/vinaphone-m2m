@@ -3,11 +3,20 @@ import {
   ClockCircleOutlined,
   ExclamationCircleOutlined,
   LockOutlined,
+  RollbackOutlined,
   StopOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
+import type { SimStatus } from "../types";
 
-export const VIN_STATUS_OPTIONS = [
+type StatusOption = {
+  value: SimStatus;
+  label: string;
+  color: string;
+  icon: React.ReactNode;
+};
+
+export const VIN_STATUS_OPTIONS: StatusOption[] = [
   {
     value: 1,
     label: "Mới",
@@ -34,7 +43,7 @@ export const VIN_STATUS_OPTIONS = [
   },
   {
     value: 5,
-    label: "Tạm khoá",
+    label: "Đã khoá",
     color: "#fa8c16",
     icon: <LockOutlined />,
   },
@@ -42,6 +51,18 @@ export const VIN_STATUS_OPTIONS = [
     value: 6,
     label: "Chờ huỷ",
     color: "#ff7a45",
+    icon: <ClockCircleOutlined />,
+  },
+  {
+    value: 7,
+    label: "Đã thu hồi",
+    color: "#d9d9d9",
+    icon: <RollbackOutlined />,
+  },
+  {
+    value: 8,
+    label: "Chờ khoá",
+    color: "#d9d9d9",
     icon: <ClockCircleOutlined />,
   },
 ];

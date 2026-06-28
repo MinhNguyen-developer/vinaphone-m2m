@@ -11,8 +11,10 @@ const statusConfig: Record<SimStatus, { color: string; label: string }> = {
   [SimStatus.ACTIVE]: { color: "processing", label: "⚡ Đã hoạt động" },
   [SimStatus.CONFIRMED]: { color: "success", label: "✅ Đã xác nhận" },
   [SimStatus.CANCELLED]: { color: "error", label: "❌ Đã hủy" },
-  [SimStatus.SUSPENDED]: { color: "warning", label: "⛔ Tạm khoá" },
+  [SimStatus.LOCKED]: { color: "warning", label: "⛔ Đã khoá" },
   [SimStatus.PENDING_CANCEL]: { color: "orange", label: "⏳ Chờ huỷ" },
+  [SimStatus.REVOKED]: { color: "red", label: "🛑 Đã thu hồi" },
+  [SimStatus.PENDING_LOCK]: { color: "yellow", label: "⏳ Chờ khoá" },
 };
 
 const SimStatusBadge: React.FC<Props> = ({ status }) => {

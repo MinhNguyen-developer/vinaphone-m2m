@@ -36,7 +36,6 @@ const { Title, Text } = Typography;
 
 const ALL_FILTER_KEYS = [
   "search",
-  "imsi",
   "contractCode",
   "ratingPlanId",
   "groupId",
@@ -75,20 +74,8 @@ const MasterSims: React.FC = () => {
         colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
         render: (value, onChange) => (
           <DebouncedInput
-            placeholder="Tìm kiếm SĐT"
+            placeholder="Tìm kiếm SĐT, IMSI"
             prefix={<SearchOutlined />}
-            value={(value as string) ?? ""}
-            onChange={onChange}
-          />
-        ),
-      },
-      {
-        filterKey: "imsi",
-        label: "IMSI",
-        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
-        render: (value, onChange) => (
-          <DebouncedInput
-            placeholder="IMSI"
             value={(value as string) ?? ""}
             onChange={onChange}
           />
@@ -189,7 +176,6 @@ const MasterSims: React.FC = () => {
       page: pagination.current,
       pageSize: pagination.pageSize,
       search: (filterValues.search as string) || undefined,
-      imsi: (filterValues.imsi as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
       ratingPlanId: toNum(filterValues.ratingPlanId),
       groupId: (filterValues.groupId as string) || undefined,
@@ -294,14 +280,16 @@ const MasterSims: React.FC = () => {
       key: "imsi",
       sorter: true,
       sortOrder: sortOrder("imsi"),
-      render: (v) =>
-        v ? (
-          <Text code style={{ fontSize: 11 }}>
-            {v}
+      render: (v: string | null) => {
+        const imsi = v?.slice(-10);
+        return v ? (
+          <Text copyable={{ text: imsi }} style={{ fontSize: 11 }}>
+            {imsi}
           </Text>
         ) : (
           <Text type="secondary">—</Text>
-        ),
+        );
+      },
     },
     {
       title: "Mã hợp đồng",

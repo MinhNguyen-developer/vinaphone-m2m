@@ -1,5 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Table, Select, Tag, Space, Typography, Card, Spin, Empty } from "antd";
+import {
+  Table,
+  Select,
+  Tag,
+  Space,
+  Typography,
+  Card,
+  Spin,
+  Empty,
+  Badge,
+} from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import type {
   ColumnsType,
@@ -181,8 +191,9 @@ const UsageHistory: React.FC = () => {
             onChange={(v) => onChange(v)}
             placeholder="Trạng thái"
             allowClear
+            popupMatchSelectWidth={false}
             options={VIN_STATUS_OPTIONS.map((o) => ({
-              label: o.label,
+              label: <Badge color={o.color} text={o.label} />,
               value: o.value,
             }))}
           />

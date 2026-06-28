@@ -20,8 +20,10 @@ export const SimStatus = {
   ACTIVE: 2,
   CONFIRMED: 3,
   CANCELLED: 4,
-  SUSPENDED: 5,
+  LOCKED: 5,
   PENDING_CANCEL: 6,
+  REVOKED: 7,
+  PENDING_LOCK: 8,
 } as const;
 export type SimStatus = (typeof SimStatus)[keyof typeof SimStatus];
 
@@ -278,6 +280,7 @@ export interface TriggeredAlert {
   sim: SimCard;
   alert: AlertConfig;
   checked: boolean;
+  triggeredAt?: string | null;
 }
 
 export interface TriggeredAlertsResponse {

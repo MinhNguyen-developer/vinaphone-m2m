@@ -95,7 +95,7 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
       render: (v: string | null) =>
         v ? (
           <Text
-            copyable={{ text: v }}
+            copyable={{ text: v.slice(-10) }}
             style={{ fontSize: 11, fontFamily: "monospace" }}
           >
             {v.slice(-10)}

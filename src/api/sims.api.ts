@@ -53,16 +53,19 @@ export const simsApi = {
 
   /**
    * PATCH /sims/batch-update-status
-   * action: "confirm" | "reset"
+   * status: target numeric SIM status
    */
   batchUpdateStatus: async (
     ids: string[],
-    action: "confirm" | "reset",
-  ): Promise<SimCard> => {
-    const res = await apiClient.patch<SimCard>(`/sims/batch-update-status`, {
-      ids,
-      action,
-    });
+    status: number,
+  ): Promise<{ count: number }> => {
+    const res = await apiClient.patch<{ count: number }>(
+      `/sims/batch-update-status`,
+      {
+        ids,
+        status,
+      },
+    );
     return res.data;
   },
 
@@ -177,6 +180,22 @@ export const simsApi = {
     data: Record<string, unknown>,
   ): Promise<SimCard> => {
     const res = await apiClient.patch<SimCard>(`/sims/${id}`, data);
+    return res.data;
+  },
+
+  bulkChangeStatusSims: async (
+    phoneNumbers: string[],
+    status: number,
+  ): Promise<{
+    changed: number;
+    requested: number;
+    notFound: number;
+  }> => {
+    const res = await apiClient.patch<{
+      changed: number;
+      requested: number;
+      notFound: number;
+    }>("/sims/bulk-change-status", { phoneNumbers, status });
     return res.data;
   },
 };

@@ -29,6 +29,7 @@ import { useGroups, useDeleteGroup } from "../hooks/useGroups";
 import GroupDrawer from "../components/Group/GroupDrawer";
 import { type FilterField, useFilters } from "../hooks/useFilters";
 import { DebouncedInput } from "../components/DebouncedInput";
+import { TableActions } from "../components/TableActions";
 
 const { Title, Text } = Typography;
 
@@ -201,25 +202,26 @@ const ProductGroups: React.FC = () => {
     {
       title: "Hành động",
       key: "actions",
-      width: 140,
+      width: 100,
+      align: "center",
       render: (_, record) => (
-        <Space>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(record)}
-          >
-            Sửa
-          </Button>
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => setDeleteTarget(record)}
-          >
-            Xoá
-          </Button>
-        </Space>
+        <TableActions
+          items={[
+            {
+              key: "edit",
+              label: "Sửa",
+              icon: <EditOutlined />,
+              onClick: () => openEdit(record),
+            },
+            {
+              key: "delete",
+              label: "Xoá",
+              danger: true,
+              icon: <DeleteOutlined />,
+              onClick: () => setDeleteTarget(record),
+            },
+          ]}
+        />
       ),
     },
   ];
