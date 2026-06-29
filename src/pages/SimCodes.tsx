@@ -1,15 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  Card,
-  Empty,
-  Flex,
-  Modal,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from "antd";
+import { Button, Card, Empty, Flex, Modal, Table, Tag, Typography } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -27,6 +17,7 @@ import { type FilterField, useFilters } from "../hooks/useFilters";
 import { DebouncedInput } from "../components/DebouncedInput";
 import SimCodeDrawer from "../components/SIM/SimCodeDrawer";
 import SimCodeSimsModal from "../components/SIM/SimCodeSimsModal";
+import { TableActions } from "../components/TableActions";
 
 const { Title, Text } = Typography;
 
@@ -193,25 +184,26 @@ const SimCodes: React.FC = () => {
     {
       title: "Hành động",
       key: "actions",
-      width: 160,
+      width: 100,
+      align: "center",
       render: (_, record) => (
-        <Space>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEdit(record)}
-          >
-            Sửa
-          </Button>
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => setDeleteTarget(record)}
-          >
-            Xoá
-          </Button>
-        </Space>
+        <TableActions
+          items={[
+            {
+              key: "edit",
+              label: "Sửa",
+              icon: <EditOutlined />,
+              onClick: () => openEdit(record),
+            },
+            {
+              key: "delete",
+              label: "Xoá",
+              danger: true,
+              icon: <DeleteOutlined />,
+              onClick: () => setDeleteTarget(record),
+            },
+          ]}
+        />
       ),
     },
   ];

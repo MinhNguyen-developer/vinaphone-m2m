@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import dayjs from "dayjs";
 import {
   Card,
   Table,
@@ -413,7 +414,8 @@ const AlertManagement: React.FC = () => {
     {
       title: "Hành động",
       key: "actions",
-      width: 60,
+      width: 100,
+      align: "center",
       fixed: "right",
       render: (_: unknown, record) => (
         <TableActions
@@ -538,10 +540,22 @@ const AlertManagement: React.FC = () => {
       render: (_: unknown, r: TriggeredAlert) => r.alert.label,
     },
     {
+      title: "Ngày phát sinh",
+      key: "triggeredAt",
+      width: 170,
+      render: (_: unknown, r: TriggeredAlert) =>
+        r.triggeredAt ? (
+          dayjs(r.triggeredAt).format("DD/MM/YYYY HH:mm")
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
       title: "Hành động",
       key: "action",
       fixed: "right",
-      width: 60,
+      width: 100,
+      align: "center",
       render: (_: unknown, r: TriggeredAlert) => (
         <TableActions
           items={[

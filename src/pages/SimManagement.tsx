@@ -43,7 +43,6 @@ import * as XLSX from "xlsx";
 import type { SimCard, SimGroup } from "../types";
 import {
   useSims,
-  useUpdateManySimStatus,
   useUpdateSimStatus,
   useBulkCancelSims,
   useBulkResetSims,
@@ -74,6 +73,7 @@ import { ratingPlansApi } from "../api/rating-plans.api";
 import usePagination from "../hooks/usePagination";
 
 import type { RcFile } from "antd/es/upload";
+import BulkChangeStatusButton from "../components/BulkChangeStatusButton";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -135,7 +135,6 @@ const STORAGE_KEY = "sim-column-visibility";
 
 const ALL_FILTER_KEYS = [
   "search",
-  "imsi",
   "contractCode",
   "ratingPlanId",
   "status",
@@ -828,21 +827,8 @@ const SimManagement: React.FC = () => {
         colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
         render: (value, onChange) => (
           <DebouncedInput
-            placeholder="Tìm kiếm SĐT"
+            placeholder="Tìm kiếm SĐT, IMSI"
             prefix={<SearchOutlined />}
-            value={(value as string) ?? ""}
-            onChange={onChange}
-          />
-        ),
-      },
-      {
-        filterKey: "imsi",
-        label: "IMSI",
-
-        colSpan: { xs: 24, sm: 12, md: 5, lg: 3 },
-        render: (value, onChange) => (
-          <DebouncedInput
-            placeholder="IMSI"
             value={(value as string) ?? ""}
             onChange={onChange}
           />
@@ -941,10 +927,10 @@ const SimManagement: React.FC = () => {
             placeholder="Trạng thái"
             allowClear
             options={VIN_STATUS_OPTIONS.map((o) => ({
-              label: o.label,
+              label: <Badge color={o.color} text={o.label} />,
               value: o.value,
             }))}
-            popupMatchSelectWidth={160}
+            popupMatchSelectWidth={false}
           />
         ),
         toUrlParams: (v) => ({ status: v != null ? String(v) : undefined }),
@@ -1076,7 +1062,6 @@ const SimManagement: React.FC = () => {
     ];
     return {
       search: (filterValues.search as string) || undefined,
-      imsi: (filterValues.imsi as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
       status: toNum(filterValues.status),
       ratingPlanId: toNum(filterValues.ratingPlanId),
@@ -1115,7 +1100,6 @@ const SimManagement: React.FC = () => {
     return ids;
   }, [triggeredData]);
 
-  const { mutate } = useUpdateManySimStatus();
   const { mutate: updateSimStatus } = useUpdateSimStatus();
   const { mutate: cancelSim } = useBulkCancelSims();
   const { mutate: resetSim } = useBulkResetSims();
@@ -1129,6 +1113,7 @@ const SimManagement: React.FC = () => {
   const [bulkResetOpen, setBulkResetOpen] = useState(false);
   const [bulkLockOpen, setBulkLockOpen] = useState(false);
   const [bulkPendingCancelOpen, setBulkPendingCancelOpen] = useState(false);
+  // const [bulkChangeStatusOpen, setBulkChangeStatusOpen] = useState(false);
 
   // ── Column definitions ────────────────────────────────────────────────
   const allColumns: (ColumnsType<SimCard>[number] & { colKey: ColumnKey })[] = [
@@ -1503,7 +1488,8 @@ const SimManagement: React.FC = () => {
       title: "Hành động",
       key: "action",
       fixed: "right",
-      width: 60,
+      width: 100,
+      align: "center",
       render: (_v, record) => (
         <TableActions
           items={[
@@ -1690,18 +1676,10 @@ const SimManagement: React.FC = () => {
           </Space>
           <Space wrap>
             {!!selectedRowKeys.length && (
-              <Button
-                type="primary"
-                size="small"
-                onClick={() => {
-                  mutate({
-                    ids: selectedRowKeys as string[],
-                    action: "confirm",
-                  });
-                }}
-              >
-                Xác nhận
-              </Button>
+              <BulkChangeStatusButton
+                selectedRowKeys={selectedRowKeys}
+                setSelectedRowKeys={setSelectedRowKeys}
+              />
             )}
             <Tooltip title="Hủy hàng loạt SIM theo số điện thoại">
               <Button

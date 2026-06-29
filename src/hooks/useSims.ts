@@ -79,13 +79,8 @@ export const useUpdateSimStatus = () => {
 export const useUpdateManySimStatus = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      ids,
-      action,
-    }: {
-      ids: string[];
-      action: "confirm" | "reset";
-    }) => simsApi.batchUpdateStatus(ids, action),
+    mutationFn: ({ ids, status }: { ids: string[]; status: number }) =>
+      simsApi.batchUpdateStatus(ids, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
     },
@@ -132,6 +127,22 @@ export const useBulkPendingCancelSims = () => {
   return useMutation({
     mutationFn: (phoneNumbers: string[]) =>
       simsApi.bulkPendingCancelSims(phoneNumbers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+
+export const useBulkChangeStatusSims = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      phoneNumbers,
+      status,
+    }: {
+      phoneNumbers: string[];
+      status: number;
+    }) => simsApi.bulkChangeStatusSims(phoneNumbers, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
     },
