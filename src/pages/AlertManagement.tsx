@@ -25,6 +25,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
+  SearchOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import type { RcFile } from "antd/es/upload";
@@ -309,12 +310,16 @@ const AlertManagement: React.FC = () => {
   const [filterSimCodeLabel, setFilterSimCodeLabel] = useState<
     string | undefined
   >();
+  const [filterAlertLabel, setFilterAlertLabel] = useState<
+    string | undefined
+  >();
   const [triggeredSort, setTriggeredSort] = useState<string | undefined>();
   const { data: triggeredData, isLoading: triggeredLoading } =
     useTriggeredAlerts({
       groupId: filterGroupId,
       simCodeLabel: filterSimCodeLabel,
       sort: triggeredSort,
+      alertLabel: filterAlertLabel,
     });
   const checkAlert = useCheckAlert();
   const queryClient = useQueryClient();
@@ -396,6 +401,8 @@ const AlertManagement: React.FC = () => {
         if (record.ratingPlanId) {
           return <RatingPlanCell ratingPlanId={record.ratingPlanId} />;
         }
+        if (record.simCodeLabel)
+          return <Tag color="orange">Mã SIM: {record.simCodeLabel}</Tag>;
         return <Tag>Tất cả</Tag>;
       },
     },
@@ -456,31 +463,9 @@ const AlertManagement: React.FC = () => {
 
   const triggeredColumns: ColumnsType<TriggeredAlert> = [
     {
-      title: "Nhóm thiết bị",
-      key: "groups",
-      render: (_: unknown, r: TriggeredAlert) => {
-        const groups = (r.sim.simGroups ?? []) as Partial<SimGroup>[];
-        if (!groups.length) return <Text type="secondary">—</Text>;
-        return (
-          <Space size={4} wrap>
-            {groups.map((g) => (
-              <Tag color="purple" key={g.group?.id ?? g.groupId}>
-                {g.group?.name}
-              </Tag>
-            ))}
-          </Space>
-        );
-      },
-    },
-    {
-      title: "Mã SIM",
-      key: "simCode",
-      render: (_: unknown, r: TriggeredAlert) =>
-        r.sim.simCode ? (
-          <Tag color="orange">{r.sim.simCode.code}</Tag>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
+      title: "Tên cảnh báo",
+      key: "alertLabel",
+      render: (_: unknown, r: TriggeredAlert) => r.alert.label,
     },
     {
       title: "Số điện thoại",
@@ -499,11 +484,46 @@ const AlertManagement: React.FC = () => {
       ),
     },
     {
-      title: "Gói cước",
-      key: "code",
-      render: (_: unknown, r: TriggeredAlert) => (
-        <Tag color="blue">{r.sim.productCode}</Tag>
-      ),
+      title: "IMSI",
+      key: "imsi",
+      fixed: "left",
+      render: (_: unknown, r: TriggeredAlert) => {
+        const imsi = r.sim.imsi?.slice(-10);
+        return imsi ? (
+          <Text copyable={{ text: imsi }} style={{ fontSize: 11 }}>
+            {imsi}
+          </Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        );
+      },
+    },
+    {
+      title: "Mã SIM",
+      key: "simCode",
+      render: (_: unknown, r: TriggeredAlert) =>
+        r.sim.simCode ? (
+          <Tag color="orange">{r.sim.simCode.code}</Tag>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "Nhóm thiết bị",
+      key: "groups",
+      render: (_: unknown, r: TriggeredAlert) => {
+        const groups = (r.sim.simGroups ?? []) as Partial<SimGroup>[];
+        if (!groups.length) return <Text type="secondary">—</Text>;
+        return (
+          <Space size={4} wrap>
+            {groups.map((g) => (
+              <Tag color="purple" key={g.group?.id ?? g.groupId}>
+                {g.group?.name}
+              </Tag>
+            ))}
+          </Space>
+        );
+      },
     },
     {
       title: "Trạng thái",
@@ -534,11 +554,7 @@ const AlertManagement: React.FC = () => {
         <Tag color="red">{formatMB(r.alert.thresholdMB)}</Tag>
       ),
     },
-    {
-      title: "Cảnh báo",
-      key: "alertLabel",
-      render: (_: unknown, r: TriggeredAlert) => r.alert.label,
-    },
+
     {
       title: "Ngày phát sinh",
       key: "triggeredAt",
@@ -622,6 +638,12 @@ const AlertManagement: React.FC = () => {
         <>
           <Card style={{ marginBottom: 12 }}>
             <Space wrap>
+              <DebouncedInput
+                placeholder="Tìm kiếm theo cảnh báo"
+                prefix={<SearchOutlined />}
+                value={filterAlertLabel ?? ""}
+                onChange={setFilterAlertLabel}
+              />
               <ServerSelect
                 queryKey={queryKeys.groups.all}
                 fetchFn={({ page, pageSize, search }) =>
