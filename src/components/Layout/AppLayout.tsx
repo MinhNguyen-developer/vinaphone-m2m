@@ -47,14 +47,19 @@ const AppLayout: React.FC<Props> = ({ children }) => {
       label: <Link to="/sims">Danh sách SIM M2M</Link>,
     },
     {
+      key: "/sim-codes",
+      icon: <TagOutlined />,
+      label: <Link to="/sim-codes">Mã SIM</Link>,
+    },
+    {
       key: "/groups",
       icon: <GroupOutlined />,
       label: <Link to="/groups">Nhóm thiết bị</Link>,
     },
     {
-      key: "/sim-codes",
-      icon: <TagOutlined />,
-      label: <Link to="/sim-codes">Mã SIM</Link>,
+      key: "/master-sims",
+      icon: <CrownOutlined />,
+      label: <Link to="/master-sims">SIM chủ (M2M)</Link>,
     },
     {
       key: "/alerts",
@@ -64,11 +69,6 @@ const AppLayout: React.FC<Props> = ({ children }) => {
         </Badge>
       ),
       label: <Link to="/alerts">Cảnh báo dung lượng</Link>,
-    },
-    {
-      key: "/master-sims",
-      icon: <CrownOutlined />,
-      label: <Link to="/master-sims">SIM chủ (M2M)</Link>,
     },
     {
       key: "/history",

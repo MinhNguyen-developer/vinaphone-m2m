@@ -7,6 +7,17 @@ export interface DashboardOverview {
   simsWithAlert: number;
 }
 
+export const SimStatusAction = {
+  CONFIRM: 'confirm',
+  RESET: 'reset',
+  CANCEL: 'cancel',
+  LOCK: 'lock',
+  PENDING_CANCEL: 'pending_cancel',
+  PENDING_LOCK: 'pending_lock',
+  PENDING_REVOKE: 'pending_revoke',
+} as const;
+export type SimStatusAction = (typeof SimStatusAction)[keyof typeof SimStatusAction];
+
 export interface SimGroupByRatingPlan {
   ratingPlanId: number | null;
   ratingPlanName: string | null;
@@ -65,6 +76,7 @@ export interface QueryAlertParams {
 export interface QueryTriggeredParams {
   groupId?: string;
   simCodeLabel?: string;
+  alertLabel?: string;
   sort?: string;
 }
 

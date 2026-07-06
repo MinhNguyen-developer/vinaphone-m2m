@@ -36,10 +36,10 @@ export const VIN_STATUS_OPTIONS: StatusOption[] = [
     icon: <CheckCircleOutlined />,
   },
   {
-    value: 4,
-    label: "Đã hủy",
-    color: "#ff4d4f",
-    icon: <StopOutlined />,
+    value: 8,
+    label: "Chờ khoá",
+    color: "#d9d9d9",
+    icon: <ClockCircleOutlined />,
   },
   {
     value: 5,
@@ -54,15 +54,15 @@ export const VIN_STATUS_OPTIONS: StatusOption[] = [
     icon: <ClockCircleOutlined />,
   },
   {
-    value: 7,
-    label: "Đã thu hồi",
-    color: "#d9d9d9",
-    icon: <RollbackOutlined />,
+    value: 4,
+    label: "Đã hủy",
+    color: "#ff4d4f",
+    icon: <StopOutlined />,
   },
   {
-    value: 8,
-    label: "Chờ khoá",
+    value: 7,
+    label: "Chờ thu hồi",
     color: "#d9d9d9",
-    icon: <ClockCircleOutlined />,
+    icon: <RollbackOutlined />,
   },
 ];

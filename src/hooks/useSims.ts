@@ -4,6 +4,7 @@ import type {
   QueryGroupMembersParams,
   SimListParams,
   UsageHistoryParams,
+  SimStatusAction,
 } from "../types";
 import { queryKeys } from "./queryKeys";
 
@@ -69,7 +70,7 @@ export const useSimGroupMembers = (
 export const useUpdateSimStatus = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, action }: { id: string; action: "confirm" | "reset" }) =>
+    mutationFn: ({ id, action }: { id: string; action: SimStatusAction }) =>
       simsApi.updateStatus(id, action),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
@@ -87,34 +88,33 @@ export const useUpdateManySimStatus = () => {
   });
 };
 
-/** POST /sims/bulk-cancel – hủy hàng loạt SIM theo số điện thoại */
+/** POST /sims/bulk-cancel – hủy hàng loạt SIM theo IMSI */
 export const useBulkCancelSims = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (phoneNumbers: string[]) =>
-      simsApi.bulkCancelSims(phoneNumbers),
+    mutationFn: (imsis: string[]) => simsApi.bulkCancelSims(imsis),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
     },
   });
 };
 
-/** POST /sims/bulk-reset – reset hàng loạt SIM theo số điện thoại */
+/** POST /sims/bulk-reset – reset hàng loạt SIM theo IMSI */
 export const useBulkResetSims = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (phoneNumbers: string[]) => simsApi.bulkResetSims(phoneNumbers),
+    mutationFn: (imsis: string[]) => simsApi.bulkResetSims(imsis),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
     },
   });
 };
 
-/** POST /sims/bulk-lock – tạm khoá hàng loạt SIM theo số điện thoại */
+/** POST /sims/bulk-lock – tạm khoá hàng loạt SIM theo IMSI */
 export const useBulkLockSims = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (phoneNumbers: string[]) => simsApi.bulkLockSims(phoneNumbers),
+    mutationFn: (imsis: string[]) => simsApi.bulkLockSims(imsis),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
     },
@@ -125,8 +125,29 @@ export const useBulkLockSims = () => {
 export const useBulkPendingCancelSims = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (phoneNumbers: string[]) =>
-      simsApi.bulkPendingCancelSims(phoneNumbers),
+    mutationFn: (imsis: string[]) => simsApi.bulkPendingCancelSims(imsis),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+
+/** POST /sims/bulk-pending-lock – chuyển trạng thái Chờ khoá hàng loạt */
+export const useBulkPendingLockSims = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (imsis: string[]) => simsApi.bulkPendingLockSims(imsis),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
+    },
+  });
+};
+
+/** POST /sims/bulk-pending-revoke – chuyển trạng thái Chờ thu hồi hàng loạt */
+export const useBulkPendingRevokeSims = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (imsis: string[]) => simsApi.bulkPendingRevokeSims(imsis),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sims.all });
     },
