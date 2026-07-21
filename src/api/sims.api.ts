@@ -114,16 +114,16 @@ export const simsApi = {
 
   /**
    * POST /sims/bulk-cancel
-   * Hủy hàng loạt SIM theo IMSI
+   * Hủy hàng loạt SIM theo số điện thoại hoặc 10 số cuối IMSI
    */
   bulkCancelSims: async (
-    imsis: string[],
+    numbers: string[],
   ): Promise<{ cancelled: number; requested: number; notFound: number }> => {
     const res = await apiClient.post<{
       cancelled: number;
       requested: number;
       notFound: number;
-    }>("/sims/bulk-cancel", { imsis });
+    }>("/sims/bulk-cancel", { numbers });
     return res.data;
   },
 
