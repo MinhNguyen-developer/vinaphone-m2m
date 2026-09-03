@@ -1,11 +1,8 @@
 /**
- * Format MB to human-readable string
+ * Format data usage in MB, matching Vinaphone units.
  */
 export function formatMB(mb: number): string {
-  if (mb >= 1024) {
-    return `${(mb / 1024).toFixed(2)} GB`;
-  }
-  return `${mb} MB`;
+  return `${mb.toLocaleString("vi-VN")} MB`;
 }
 
 /**

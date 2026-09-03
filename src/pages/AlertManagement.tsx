@@ -17,7 +17,7 @@ import {
   Input,
   Upload,
 } from "antd";
-import { type ColumnsType, type SorterResult } from "antd/es/table/interface";
+import { type ColumnsType } from "antd/es/table/interface";
 import {
   BellFilled,
   BellOutlined,
@@ -37,6 +37,7 @@ import type {
   TriggeredAlert,
 } from "../types";
 import { formatMB } from "../utils";
+import { VIN_STATUS_OPTIONS } from "../utils/constants";
 import SimStatusBadge from "../components/SIM/SimStatusBadge";
 import {
   useAlerts,
@@ -60,6 +61,24 @@ import { TableActions } from "../components/TableActions";
 import { alertsApi } from "../api/alerts.api";
 
 const { Title, Text } = Typography;
+
+const collator = new Intl.Collator("vi", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+const compareText = (a?: string | number | null, b?: string | number | null) =>
+  collator.compare(String(a ?? ""), String(b ?? ""));
+
+const getTriggeredGroupNames = (record: TriggeredAlert) =>
+  ((record.sim.simGroups ?? []) as Partial<SimGroup>[])
+    .map((group) => group.group?.name)
+    .filter(Boolean)
+    .join(", ");
+
+const getSimStatusLabel = (status: number) =>
+  VIN_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
+  String(status);
 
 // ─── Bulk Check Status Modal ───────────────────────────────────────────────────
 
@@ -313,31 +332,16 @@ const AlertManagement: React.FC = () => {
   const [filterAlertLabel, setFilterAlertLabel] = useState<
     string | undefined
   >();
-  const [triggeredSort, setTriggeredSort] = useState<string | undefined>();
   const { data: triggeredData, isLoading: triggeredLoading } =
     useTriggeredAlerts({
       groupId: filterGroupId,
       simCodeLabel: filterSimCodeLabel,
-      sort: triggeredSort,
       alertLabel: filterAlertLabel,
     });
   const checkAlert = useCheckAlert();
   const queryClient = useQueryClient();
   const { mutateAsync: deleteAlert, isPending: deleting } = useDeleteAlert();
   const [bulkCheckOpen, setBulkCheckOpen] = useState(false);
-
-  const handleTriggeredTableChange = (
-    _pagination: unknown,
-    _filters: unknown,
-    sorter: SorterResult<TriggeredAlert> | SorterResult<TriggeredAlert>[],
-  ) => {
-    const s = Array.isArray(sorter) ? sorter[0] : sorter;
-    if (s.columnKey === "used" && s.order) {
-      setTriggeredSort(`usedMB:${s.order === "ascend" ? "asc" : "desc"}`);
-    } else {
-      setTriggeredSort(undefined);
-    }
-  };
 
   // ── Drawer state ──────────────────────────────────────────────────────
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -465,12 +469,14 @@ const AlertManagement: React.FC = () => {
     {
       title: "Tên cảnh báo",
       key: "alertLabel",
+      sorter: (a, b) => compareText(a.alert.label, b.alert.label),
       render: (_: unknown, r: TriggeredAlert) => r.alert.label,
     },
     {
       title: "Số điện thoại",
       key: "phone",
       fixed: "left",
+      sorter: (a, b) => compareText(a.sim.phoneNumber, b.sim.phoneNumber),
       render: (_: unknown, r: TriggeredAlert) => (
         <Text
           strong
@@ -487,6 +493,7 @@ const AlertManagement: React.FC = () => {
       title: "IMSI",
       key: "imsi",
       fixed: "left",
+      sorter: (a, b) => compareText(a.sim.imsi, b.sim.imsi),
       render: (_: unknown, r: TriggeredAlert) => {
         const imsi = r.sim.imsi?.slice(-10);
         return imsi ? (
@@ -501,6 +508,8 @@ const AlertManagement: React.FC = () => {
     {
       title: "Mã SIM",
       key: "simCode",
+      sorter: (a, b) =>
+        compareText(a.sim.simCode?.code, b.sim.simCode?.code),
       render: (_: unknown, r: TriggeredAlert) =>
         r.sim.simCode ? (
           <Tag color="orange">{r.sim.simCode.code}</Tag>
@@ -511,6 +520,8 @@ const AlertManagement: React.FC = () => {
     {
       title: "Nhóm thiết bị",
       key: "groups",
+      sorter: (a, b) =>
+        compareText(getTriggeredGroupNames(a), getTriggeredGroupNames(b)),
       render: (_: unknown, r: TriggeredAlert) => {
         const groups = (r.sim.simGroups ?? []) as Partial<SimGroup>[];
         if (!groups.length) return <Text type="secondary">—</Text>;
@@ -528,6 +539,8 @@ const AlertManagement: React.FC = () => {
     {
       title: "Trạng thái",
       key: "status",
+      sorter: (a, b) =>
+        compareText(getSimStatusLabel(a.sim.status), getSimStatusLabel(b.sim.status)),
       render: (_: unknown, r: TriggeredAlert) => (
         <SimStatusBadge status={r.sim.status} />
       ),
@@ -535,12 +548,7 @@ const AlertManagement: React.FC = () => {
     {
       title: "Dung lượng đã dùng",
       key: "used",
-      sorter: true,
-      sortOrder: triggeredSort?.startsWith("usedMB:")
-        ? triggeredSort.endsWith(":asc")
-          ? "ascend"
-          : "descend"
-        : null,
+      sorter: (a, b) => a.sim.usedMB - b.sim.usedMB,
       render: (_: unknown, r: TriggeredAlert) => (
         <Text style={{ color: "#ff4d4f" }} strong>
           {formatMB(r.sim.usedMB)}
@@ -550,6 +558,7 @@ const AlertManagement: React.FC = () => {
     {
       title: "Ngưỡng cảnh báo",
       key: "threshold",
+      sorter: (a, b) => a.alert.thresholdMB - b.alert.thresholdMB,
       render: (_: unknown, r: TriggeredAlert) => (
         <Tag color="red">{formatMB(r.alert.thresholdMB)}</Tag>
       ),
@@ -559,6 +568,8 @@ const AlertManagement: React.FC = () => {
       title: "Ngày phát sinh",
       key: "triggeredAt",
       width: 170,
+      sorter: (a, b) =>
+        dayjs(a.triggeredAt ?? 0).valueOf() - dayjs(b.triggeredAt ?? 0).valueOf(),
       render: (_: unknown, r: TriggeredAlert) =>
         r.triggeredAt ? (
           dayjs(r.triggeredAt).format("DD/MM/YYYY HH:mm")
@@ -711,7 +722,6 @@ const AlertManagement: React.FC = () => {
                 scroll={{ x: "max-content" }}
                 columns={triggeredColumns}
                 rowClassName={(r) => (r.checked ? "row-checked" : "")}
-                onChange={handleTriggeredTableChange}
                 rowSelection={{
                   type: "checkbox",
                   selectedRowKeys: selectedTriggeredKeys,

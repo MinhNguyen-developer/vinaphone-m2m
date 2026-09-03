@@ -38,6 +38,15 @@ export const SimStatus = {
 } as const;
 export type SimStatus = (typeof SimStatus)[keyof typeof SimStatus];
 
+export const VinaphoneSimStatus = {
+  ACTIVE: 2,
+  ONE_WAY_LOCKED: 3,
+  TWO_WAY_LOCKED: 4,
+  CANCELLED: 5,
+} as const;
+export type VinaphoneSimStatus =
+  (typeof VinaphoneSimStatus)[keyof typeof VinaphoneSimStatus];
+
 // ===== CORE INTERFACES =====
 
 export interface ProductGroup {
@@ -157,8 +166,8 @@ export interface SimCard {
   /** groupName from Vinaphone */
   groupName?: string | null;
   status: SimStatus;
-  /** Numeric status from Vinaphone: 1=Mới,2=Đang hoạt động,3=Tạm khoá,4=Huỷ */
-  vinaphoneStatus?: number;
+  /** Numeric status from Vinaphone. */
+  vinaphoneStatus?: VinaphoneSimStatus | null;
   usedMB: number;
   customerName?: string;
   customerCode?: string;
@@ -229,6 +238,7 @@ export interface SimListParams {
   contractCode?: string;
   contractor?: string;
   status?: number;
+  vinaphoneStatus?: number;
   simGroupId?: number;
   customer?: string;
   dateFrom?: string;

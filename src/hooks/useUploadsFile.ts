@@ -7,15 +7,17 @@ interface UseUploadCsvOptions {
   autoUpload?: boolean;
 }
 
-export const parseBulkImsis = (raw: string): string[] =>
+export const parseBulkSimIdentifiers = (raw: string): string[] =>
   raw
     .split(/[\n,;]+/)
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
 
+export const parseBulkImsis = parseBulkSimIdentifiers;
+
 export const useUploadCsv = ({
   onParsed,
-  parser = parseBulkImsis,
+  parser = parseBulkSimIdentifiers,
   autoUpload = false,
 }: UseUploadCsvOptions) =>
   useCallback(

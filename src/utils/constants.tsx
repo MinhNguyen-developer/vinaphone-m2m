@@ -7,7 +7,7 @@ import {
   StopOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
-import type { SimStatus } from "../types";
+import type { SimStatus, VinaphoneSimStatus } from "../types";
 
 type StatusOption = {
   value: SimStatus;
@@ -64,5 +64,39 @@ export const VIN_STATUS_OPTIONS: StatusOption[] = [
     label: "Chờ thu hồi",
     color: "#d9d9d9",
     icon: <RollbackOutlined />,
+  },
+];
+
+type VinaphoneStatusOption = {
+  value: VinaphoneSimStatus;
+  label: string;
+  color: string;
+  icon: React.ReactNode;
+};
+
+export const VINAPHONE_SIM_STATUS_OPTIONS: VinaphoneStatusOption[] = [
+  {
+    value: 2,
+    label: "Đang hoạt động",
+    color: "#52c41a",
+    icon: <SyncOutlined />,
+  },
+  {
+    value: 3,
+    label: "Khoá 1 chiều",
+    color: "#faad14",
+    icon: <LockOutlined />,
+  },
+  {
+    value: 4,
+    label: "Khoá 2 chiều",
+    color: "#fa8c16",
+    icon: <LockOutlined />,
+  },
+  {
+    value: 5,
+    label: "Đã hủy",
+    color: "#ff4d4f",
+    icon: <StopOutlined />,
   },
 ];
