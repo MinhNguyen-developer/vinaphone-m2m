@@ -114,7 +114,7 @@ export const simsApi = {
 
   /**
    * POST /sims/bulk-cancel
-   * Hủy hàng loạt SIM theo số điện thoại hoặc 10 số cuối IMSI
+   * Hủy hàng loạt SIM theo số điện thoại hoặc IMSI
    */
   bulkCancelSims: async (
     numbers: string[],
@@ -129,32 +129,32 @@ export const simsApi = {
 
   /**
    * POST /sims/bulk-reset
-   * Reset hàng loạt SIM theo IMSI (status→NEW, xóa lịch sử dữ liệu)
+   * Reset hàng loạt SIM theo số điện thoại hoặc IMSI
    */
   bulkResetSims: async (
-    imsis: string[],
+    numbers: string[],
   ): Promise<{ reset: number; requested: number; notFound: number }> => {
     const res = await apiClient.post<{
       reset: number;
       requested: number;
       notFound: number;
-    }>("/sims/bulk-reset", { imsis });
+    }>("/sims/bulk-reset", { numbers });
     return res.data;
   },
 
   bulkLockSims: async (
-    imsis: string[],
+    numbers: string[],
   ): Promise<{ locked: number; requested: number; notFound: number }> => {
     const res = await apiClient.post<{
       locked: number;
       requested: number;
       notFound: number;
-    }>("/sims/bulk-lock", { imsis });
+    }>("/sims/bulk-lock", { numbers });
     return res.data;
   },
 
   bulkPendingCancelSims: async (
-    imsis: string[],
+    numbers: string[],
   ): Promise<{
     pendingCancelled: number;
     requested: number;
@@ -164,12 +164,12 @@ export const simsApi = {
       pendingCancelled: number;
       requested: number;
       notFound: number;
-    }>("/sims/bulk-pending-cancel", { imsis });
+    }>("/sims/bulk-pending-cancel", { numbers });
     return res.data;
   },
 
   bulkPendingLockSims: async (
-    imsis: string[],
+    numbers: string[],
   ): Promise<{
     pendingLocked: number;
     requested: number;
@@ -179,12 +179,12 @@ export const simsApi = {
       pendingLocked: number;
       requested: number;
       notFound: number;
-    }>("/sims/bulk-pending-lock", { imsis });
+    }>("/sims/bulk-pending-lock", { numbers });
     return res.data;
   },
 
   bulkPendingRevokeSims: async (
-    imsis: string[],
+    numbers: string[],
   ): Promise<{
     pendingRevoked: number;
     requested: number;
@@ -194,7 +194,7 @@ export const simsApi = {
       pendingRevoked: number;
       requested: number;
       notFound: number;
-    }>("/sims/bulk-pending-revoke", { imsis });
+    }>("/sims/bulk-pending-revoke", { numbers });
     return res.data;
   },
 

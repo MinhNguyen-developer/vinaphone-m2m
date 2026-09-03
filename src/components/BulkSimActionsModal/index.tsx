@@ -18,7 +18,10 @@ import {
   useBulkPendingRevokeSims,
   useBulkResetSims,
 } from "../../hooks/useSims";
-import { parseBulkImsis, useUploadCsv } from "../../hooks/useUploadsFile";
+import {
+  parseBulkSimIdentifiers,
+  useUploadCsv,
+} from "../../hooks/useUploadsFile";
 
 const { Text } = Typography;
 
@@ -157,7 +160,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
 
   const handleTextChange = (val: string) => {
     setTextValue(val);
-    setParsed(parseBulkImsis(val));
+    setParsed(parseBulkSimIdentifiers(val));
   };
 
   const handleCsvUpload = useUploadCsv({
@@ -176,7 +179,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
 
     if (result.notFound > 0) {
       message.warning(
-        `${result.notFound} IMSI không tìm thấy trong hệ thống`,
+        `${result.notFound} số điện thoại/IMSI không tìm thấy trong hệ thống`,
         6,
       );
     }
@@ -187,7 +190,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
 
   const handleConfirm = () => {
     if (parsed.length === 0) {
-      message.warning("Vui lòng nhập ít nhất 1 IMSI!");
+      message.warning("Vui lòng nhập ít nhất 1 số điện thoại hoặc IMSI!");
       return;
     }
 
@@ -245,7 +248,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
     onClose();
   };
 
-  const placeholder = useMemo(() => "1172636441\n1726364412\n...", []);
+  const placeholder = useMemo(() => "0912345678\n1172636441\n...", []);
 
   return (
     <Modal
@@ -275,7 +278,8 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
               Kéo thả file vào đây hoặc click để chọn
             </p>
             <p className="ant-upload-hint">
-              File CSV 1 cột, không có tiêu đề, mỗi dòng 1 IMSI
+              File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại hoặc
+              IMSI
             </p>
           </Upload.Dragger>
         </div>
@@ -283,7 +287,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
           hoặc nhập tay
         </Divider>
         <div>
-          <Text strong>Danh sách IMSI</Text>
+          <Text strong>Danh sách số điện thoại/IMSI</Text>
           <Input.TextArea
             rows={4}
             placeholder={placeholder}
@@ -293,7 +297,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
           />
           {parsed.length > 0 && (
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Đã nhận {parsed.length} IMSI
+              Đã nhận {parsed.length} số điện thoại/IMSI
             </Text>
           )}
         </div>

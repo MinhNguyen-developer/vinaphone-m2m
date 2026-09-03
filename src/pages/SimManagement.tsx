@@ -57,7 +57,10 @@ import { useGroupSims } from "../hooks/useGroupSims";
 import { DebouncedInput } from "../components/DebouncedInput";
 import { CustomTableFilter } from "../components/CustomTableFilter";
 import { SyncPanel } from "../components/SyncPanel";
-import { VIN_STATUS_OPTIONS } from "../utils/constants";
+import {
+  VIN_STATUS_OPTIONS,
+  VINAPHONE_SIM_STATUS_OPTIONS,
+} from "../utils/constants";
 import { ServerSelect } from "../components/ServerSelect";
 import { queryKeys } from "../hooks/queryKeys";
 import { groupsApi } from "../api/groups.api";
@@ -84,6 +87,7 @@ const ALL_COLUMN_KEYS = [
   "sogMembers",
   "usedMB",
   "activated",
+  "vinaphoneStatus",
   "note",
   "simCode",
   "status",
@@ -102,11 +106,12 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   sogMembership: "Loại gói cước",
   sogMembers: "Thuê bao thành viên",
   usedMB: "Dung lượng",
-  activated: "Ngày kích hoạt",
-  vinaphoneActivatedAt: "Ngày kích hoạt (Vinaphone)",
+  activated: "Ngày kích hoạt nội bộ",
+  vinaphoneActivatedAt: "Ngày kích hoạt VNPT",
+  vinaphoneStatus: "Trạng thái VNPT",
   note: "Ghi chú",
   simCode: "Mã SIM",
-  status: "Trạng thái",
+  status: "Trạng thái nội bộ",
   simGroups: "Nhóm thiết bị",
   action: "Hành động",
 };
@@ -114,7 +119,8 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
 const DEFAULT_VISIBLE: ColumnKey[] = [
   "phone",
   "imsi",
-  "activated",
+  "vinaphoneActivatedAt",
+  "vinaphoneStatus",
   "simGroups",
   "simCode",
   "note",
@@ -123,7 +129,7 @@ const DEFAULT_VISIBLE: ColumnKey[] = [
   "action",
 ];
 
-const STORAGE_KEY = "sim-column-visibility";
+const STORAGE_KEY = "sim-column-visibility-v2";
 
 // ─── Filter keys ──────────────────────────────────────────────────────────
 
@@ -132,6 +138,7 @@ const ALL_FILTER_KEYS = [
   "contractCode",
   "ratingPlanId",
   "status",
+  "vinaphoneStatus",
   "simType",
   "dateRange",
   "groupName",
@@ -142,10 +149,13 @@ const ALL_FILTER_KEYS = [
 ] as const;
 type FilterKey = (typeof ALL_FILTER_KEYS)[number];
 
-// Filter keys shown in the toolbox checkbox list (sort is internal, not user-visible)
-const VISIBLE_FILTER_KEYS = ALL_FILTER_KEYS.filter(
-  (k) => k !== "sort",
-) as FilterKey[];
+const DEFAULT_VISIBLE_FILTER_KEYS: FilterKey[] = [
+  "search",
+  "simCode",
+  "vinaphoneStatus",
+  "groupId",
+  "dateRange",
+];
 
 // ─── Export ───────────────────────────────────────────────────────────────
 
@@ -154,6 +164,10 @@ interface ExportColumn {
   label: string;
   getValue: (s: SimCard) => string | number;
 }
+
+const vinaphoneStatusMap = Object.fromEntries(
+  VINAPHONE_SIM_STATUS_OPTIONS.map((o) => [o.value, o]),
+);
 
 const ALL_EXPORT_COLUMNS: ExportColumn[] = ALL_COLUMN_KEYS.map((key) => {
   const label = COLUMN_LABELS[key];
@@ -180,6 +194,12 @@ const ALL_EXPORT_COLUMNS: ExportColumn[] = ALL_COLUMN_KEYS.map((key) => {
         return s.usedMB;
       case "activated":
         return s.activatedDate ?? s.firstUsedAt ?? "";
+      case "vinaphoneStatus":
+        return s.vinaphoneStatus
+          ? (vinaphoneStatusMap[s.vinaphoneStatus]?.label ??
+              s.systemStatus ??
+              s.vinaphoneStatus)
+          : (s.systemStatus ?? "");
       case "note":
         return s.note ?? "";
       case "status":
@@ -193,7 +213,7 @@ const ALL_EXPORT_COLUMNS: ExportColumn[] = ALL_COLUMN_KEYS.map((key) => {
           .filter(Boolean)
           .join(", ");
       case "vinaphoneActivatedAt":
-        return s.vinaphoneActivatedAt ?? "";
+        return s.vinaphoneActivatedAt ?? s.activatedDate ?? "";
       case "simCode":
         return s.simCodeLabel ?? "";
       case "action":
@@ -208,6 +228,8 @@ const DEFAULT_EXPORT_KEYS: ColumnKey[] = [
   "imsi",
   "contract",
   "ratingPlan",
+  "vinaphoneActivatedAt",
+  "vinaphoneStatus",
   "status",
   "usedMB",
 ];
@@ -411,14 +433,14 @@ const SimManagement: React.FC = () => {
       },
       {
         filterKey: "status",
-        label: "Trạng thái",
+        label: "Trạng thái nội bộ",
         colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
         render: (value, onChange) => (
           <Select
             style={{ width: "100%" }}
             value={Number.isNaN(+value) ? value : Number(value)}
             onChange={(v) => onChange(v)}
-            placeholder="Trạng thái"
+            placeholder="Trạng thái nội bộ"
             allowClear
             options={VIN_STATUS_OPTIONS.map((o) => ({
               label: <Badge color={o.color} text={o.label} />,
@@ -429,6 +451,29 @@ const SimManagement: React.FC = () => {
         ),
         toUrlParams: (v) => ({ status: v != null ? String(v) : undefined }),
         fromUrlParams: (p) => p.get("status") ?? undefined,
+      },
+      {
+        filterKey: "vinaphoneStatus",
+        label: "Trạng thái",
+        colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
+        render: (value, onChange) => (
+          <Select
+            style={{ width: "100%" }}
+            value={Number.isNaN(+value) ? value : Number(value)}
+            onChange={(v) => onChange(v)}
+            placeholder="Trạng thái VNPT"
+            allowClear
+            options={VINAPHONE_SIM_STATUS_OPTIONS.map((o) => ({
+              label: <Badge color={o.color} text={o.label} />,
+              value: o.value,
+            }))}
+            popupMatchSelectWidth={false}
+          />
+        ),
+        toUrlParams: (v) => ({
+          vinaphoneStatus: v != null ? String(v) : undefined,
+        }),
+        fromUrlParams: (p) => p.get("vinaphoneStatus") ?? undefined,
       },
       {
         filterKey: "sogIsOwner",
@@ -498,7 +543,7 @@ const SimManagement: React.FC = () => {
             style={{ width: "100%" }}
             value={value as [dayjs.Dayjs | null, dayjs.Dayjs | null]}
             onChange={(v) => onChange(v ? [v[0], v[1]] : [null, null])}
-            placeholder={["Ngày kích hoạt từ", "Đến ngày"]}
+            placeholder={["Ngày kích hoạt VNPT từ", "Đến ngày"]}
             format="DD/MM/YYYY"
           />
         ),
@@ -530,8 +575,8 @@ const SimManagement: React.FC = () => {
   const { filterValues, filterBar, filterToolbox, setFilterValue } =
     useFilters<FilterKey>({
       fields: filterFields,
-      storageKey: "sim-filters",
-      defaultVisibleKeys: VISIBLE_FILTER_KEYS,
+      storageKey: "sim-filters-v2",
+      defaultVisibleKeys: DEFAULT_VISIBLE_FILTER_KEYS,
     });
 
   // ── Reset to page 1 when non-sort filters change ──────────────────────
@@ -558,6 +603,7 @@ const SimManagement: React.FC = () => {
       search: (filterValues.search as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
       status: toNum(filterValues.status),
+      vinaphoneStatus: toNum(filterValues.vinaphoneStatus),
       ratingPlanId: toNum(filterValues.ratingPlanId),
       simType: toNum(filterValues.simType),
       activeDateFrom: dr[0]?.format("YYYY-MM-DD"),
@@ -565,7 +611,7 @@ const SimManagement: React.FC = () => {
       pageSize: pagination.pageSize,
       page: pagination.current,
       groupName: (filterValues.groupName as string) || undefined,
-      groupId: filterValues.groupId as string,
+      groupId: filterValues.groupId as string | string[] | undefined,
       sogIsOwner: toNum(filterValues.sogIsOwner),
       simCode: (filterValues.simCode as string) || undefined,
       sort: (filterValues.sort as string) || undefined,
@@ -584,6 +630,9 @@ const SimManagement: React.FC = () => {
   const sims = simsData?.data ?? [];
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedSimsById, setSelectedSimsById] = useState<
+    Record<string, SimCard>
+  >({});
   const [modalSimId, setModalSimId] = useState<string | null>(null);
   const [groupModalId, setGroupModalId] = useState<string | null>(null);
   const [groupModalName, setGroupModalName] = useState<string | null>(null);
@@ -838,7 +887,7 @@ const SimManagement: React.FC = () => {
     },
     {
       colKey: "activated",
-      title: "Ngày kích hoạt",
+      title: "Ngày kích hoạt nội bộ",
       dataIndex: "firstUsedAt",
       key: "firstUsedAt",
       width: 145,
@@ -859,12 +908,12 @@ const SimManagement: React.FC = () => {
     },
     {
       colKey: "vinaphoneActivatedAt",
-      title: "Ngày kích hoạt (Vinaphone)",
+      title: "Ngày kích hoạt VNPT",
       dataIndex: "vinaphoneActivatedAt",
       key: "vinaphoneActivatedAt",
-      width: 225,
+      width: 170,
       render: (v, r) => {
-        const d = v ?? r.vinaphoneActivatedAt;
+        const d = v ?? r.vinaphoneActivatedAt ?? r.activatedDate;
         return d ? (
           dayjs(d).format("DD/MM/YYYY")
         ) : (
@@ -881,8 +930,39 @@ const SimManagement: React.FC = () => {
         : null,
     },
     {
+      colKey: "vinaphoneStatus",
+      title: "Trạng thái VNPT",
+      dataIndex: "vinaphoneStatus",
+      key: "vinaphoneStatus",
+      width: 165,
+      render: (v, record) => {
+        const statusValue = v ?? record.vinaphoneStatus;
+        const s = statusValue ? vinaphoneStatusMap[statusValue] : undefined;
+        if (s) {
+          return (
+            <Tag color={s.color} icon={s.icon}>
+              {s.label}
+            </Tag>
+          );
+        }
+        return record.systemStatus ? (
+          <Tag color="default">{record.systemStatus}</Tag>
+        ) : (
+          <Text type="secondary">—</Text>
+        );
+      },
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith(
+        "vinaphoneStatus:",
+      )
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
+    },
+    {
       colKey: "status",
-      title: "Trạng thái",
+      title: "Trạng thái nội bộ",
       dataIndex: "status",
       key: "status",
       width: 145,
@@ -1106,7 +1186,24 @@ const SimManagement: React.FC = () => {
   // ── Export ────────────────────────────────────────────────────────────
   const rowSelection: TableRowSelection<SimCard> = {
     selectedRowKeys,
-    onChange: (keys) => setSelectedRowKeys(keys),
+    preserveSelectedRowKeys: true,
+    onChange: (keys, rows) => {
+      const selectedIds = new Set(keys.map(String));
+      setSelectedRowKeys(keys);
+      setSelectedSimsById((prev) => {
+        const next: Record<string, SimCard> = {};
+
+        for (const [id, sim] of Object.entries(prev)) {
+          if (selectedIds.has(id)) next[id] = sim;
+        }
+
+        for (const sim of [...rows, ...sims]) {
+          if (selectedIds.has(sim.id)) next[sim.id] = sim;
+        }
+
+        return next;
+      });
+    },
   };
 
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -1118,9 +1215,16 @@ const SimManagement: React.FC = () => {
       message.warning("Vui lòng tích chọn ít nhất 1 SIM!");
       return;
     }
-    const data = exportAll
-      ? sims
-      : sims.filter((s) => selectedRowKeys.includes(s.id));
+    const selectedData = selectedRowKeys
+      .map((key) => selectedSimsById[String(key)])
+      .filter((sim): sim is SimCard => !!sim);
+    const data = exportAll ? sims : selectedData;
+
+    if (!exportAll && data.length === 0) {
+      message.warning("Không tìm thấy dữ liệu của các SIM đã chọn!");
+      return;
+    }
+
     setExportData(data);
     setExportModalOpen(true);
   };
@@ -1201,7 +1305,10 @@ const SimManagement: React.FC = () => {
                 <Tag
                   color="default"
                   style={{ cursor: "pointer" }}
-                  onClick={() => setSelectedRowKeys([])}
+                  onClick={() => {
+                    setSelectedRowKeys([]);
+                    setSelectedSimsById({});
+                  }}
                 >
                   Huỷ chọn
                 </Tag>
@@ -1215,7 +1322,7 @@ const SimManagement: React.FC = () => {
                 setSelectedRowKeys={setSelectedRowKeys}
               />
             )}
-            <Tooltip title="Hủy hàng loạt SIM theo số điện thoại">
+            <Tooltip title="Hủy hàng loạt SIM theo số điện thoại/IMSI">
               <Button
                 danger
                 icon={<StopOutlined />}
@@ -1224,7 +1331,7 @@ const SimManagement: React.FC = () => {
                 Hủy SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Tạm khoá hàng loạt SIM theo số điện thoại">
+            <Tooltip title="Tạm khoá hàng loạt SIM theo số điện thoại/IMSI">
               <Button
                 icon={<LockOutlined />}
                 onClick={() => setBulkActionModal("lock")}
@@ -1232,7 +1339,7 @@ const SimManagement: React.FC = () => {
                 Khoá SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Chuyển trạng thái Chờ khoá hàng loạt SIM theo IMSI">
+            <Tooltip title="Chuyển trạng thái Chờ khoá hàng loạt SIM theo số điện thoại/IMSI">
               <Button
                 icon={<ClockCircleOutlined />}
                 onClick={() => setBulkActionModal("pendingLock")}
@@ -1240,7 +1347,7 @@ const SimManagement: React.FC = () => {
                 Chờ khoá SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Chuyển trạng thái Chờ thu hồi hàng loạt SIM theo IMSI">
+            <Tooltip title="Chuyển trạng thái Chờ thu hồi hàng loạt SIM theo số điện thoại/IMSI">
               <Button
                 icon={<ClockCircleOutlined />}
                 onClick={() => setBulkActionModal("pendingRevoke")}
@@ -1248,7 +1355,7 @@ const SimManagement: React.FC = () => {
                 Chờ thu hồi SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Chuyển trạng thái Chờ huỷ hàng loạt SIM theo IMSI">
+            <Tooltip title="Chuyển trạng thái Chờ huỷ hàng loạt SIM theo số điện thoại/IMSI">
               <Button
                 icon={<ClockCircleOutlined />}
                 onClick={() => setBulkActionModal("pendingCancel")}
@@ -1256,7 +1363,7 @@ const SimManagement: React.FC = () => {
                 Chờ huỷ SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Reset hàng loạt SIM theo số điện thoại">
+            <Tooltip title="Reset hàng loạt SIM theo số điện thoại/IMSI">
               <Button
                 icon={<ReloadOutlined />}
                 onClick={() => setBulkActionModal("reset")}
