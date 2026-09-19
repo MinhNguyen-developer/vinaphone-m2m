@@ -28,7 +28,6 @@ import { ServerSelect } from "../components/ServerSelect";
 import { type FilterField, useFilters } from "../hooks/useFilters";
 import { queryKeys } from "../hooks/queryKeys";
 import { ratingPlansApi } from "../api/rating-plans.api";
-import { groupsApi } from "../api/groups.api";
 
 const { Title, Text } = Typography;
 
@@ -38,7 +37,7 @@ const ALL_FILTER_KEYS = [
   "search",
   "contractCode",
   "ratingPlanId",
-  "groupId",
+  "groupName",
   "sort",
 ] as const;
 type FilterKey = (typeof ALL_FILTER_KEYS)[number];
@@ -119,22 +118,14 @@ const MasterSims: React.FC = () => {
         fromUrlParams: (p) => p.get("ratingPlanId") ?? undefined,
       },
       {
-        filterKey: "groupId",
+        filterKey: "groupName",
         label: "Nhóm thiết bị",
         colSpan: { xs: 24, sm: 12, md: 4, lg: 3 },
         render: (value, onChange) => (
-          <ServerSelect
-            queryKey={queryKeys.groups.all}
-            placeholder="Nhóm thiết bị"
-            value={(value as string) || undefined}
-            fetchFn={({ page, pageSize, search }) =>
-              groupsApi.getList({ page, pageSize, search })
-            }
-            onChange={(v) => onChange(v)}
-            allowClear
-            style={{ width: "100%" }}
-            getOptionValue={(g) => g.id}
-            getOptionLabel={(g) => g.name}
+          <DebouncedInput
+            placeholder="Tên nhóm thiết bị"
+            value={(value as string) ?? ""}
+            onChange={onChange}
           />
         ),
       },
@@ -178,7 +169,7 @@ const MasterSims: React.FC = () => {
       search: (filterValues.search as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
       ratingPlanId: toNum(filterValues.ratingPlanId),
-      groupId: (filterValues.groupId as string) || undefined,
+      groupName: (filterValues.groupName as string) || undefined,
       sort: (filterValues.sort as string) || undefined,
     };
   }, [filterValues, pagination]);

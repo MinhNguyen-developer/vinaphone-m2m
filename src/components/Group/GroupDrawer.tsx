@@ -45,6 +45,9 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
   const [form] = Form.useForm<GroupFormValues>();
   const [targetKeys, setTargetKeys] = useState<string[]>([]);
   const [phoneInput, setPhoneInput] = useState("");
+  const [uploadedIdentifiers, setUploadedIdentifiers] = useState<string[]>(
+    [],
+  );
 
   const { mutateAsync: createGroup, isPending: creating } = useCreateGroup();
   const { mutateAsync: updateGroup, isPending: updating } = useUpdateGroup();
@@ -70,6 +73,15 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     [allSims],
   );
 
+  const simIdByIdentifier = useMemo(() => {
+    const identifiers = new Map<string, string>();
+    allSims.forEach((sim) => {
+      identifiers.set(sim.phoneNumber, sim.id);
+      if (sim.imsi) identifiers.set(sim.imsi, sim.id);
+    });
+    return identifiers;
+  }, [allSims]);
+
   // Pre-fill form on open
   useEffect(() => {
     if (!open) return;
@@ -81,6 +93,7 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     } else {
       form.resetFields();
       setTargetKeys([]);
+      setUploadedIdentifiers([]);
     }
   }, [open, mode, editingGroup, form]);
 
@@ -94,6 +107,7 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     form.resetFields();
     setTargetKeys([]);
     setPhoneInput("");
+    setUploadedIdentifiers([]);
     onClose();
   };
 
@@ -101,20 +115,34 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = (e.target?.result as string) ?? "";
-      const phones = text
+      const identifiers = text
         .split(/[\n,;\r]+/)
         .map((p) => p.trim())
         .filter(Boolean);
-      if (!phones.length) return;
-      const phoneToId = new Map(allSims.map((s) => [s.phoneNumber, s.id]));
-      const found: string[] = [];
+      if (!identifiers.length) return;
+
+      const foundIds = new Set<string>();
       const notFound: string[] = [];
-      phones.forEach((p) => {
-        const id = phoneToId.get(p);
-        if (id) found.push(id);
-        else notFound.push(p);
+      identifiers.forEach((identifier) => {
+        const id = simIdByIdentifier.get(identifier);
+        if (id) foundIds.add(id);
+        else notFound.push(identifier);
       });
-      setTargetKeys(Array.from(new Set([...targetKeys, ...found])));
+      const found = Array.from(foundIds);
+
+      setTargetKeys((currentKeys) =>
+        Array.from(new Set([...currentKeys, ...found])),
+      );
+      setUploadedIdentifiers((currentIdentifiers) =>
+        Array.from(
+          new Set([
+            ...currentIdentifiers,
+            ...identifiers.filter((identifier) =>
+              simIdByIdentifier.has(identifier),
+            ),
+          ]),
+        ),
+      );
       if (found.length)
         message.success(`Đã thêm ${found.length} SIM từ file vào nhóm`);
       if (notFound.length)
@@ -147,7 +175,11 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
-    const dto = { ...values, simIds: targetKeys };
+    const dto = {
+      ...values,
+      simIds: targetKeys,
+      simIdentifiers: uploadedIdentifiers,
+    };
     if (mode === "create") {
       await createGroup(dto);
       message.success("Tạo nhóm thành công");
@@ -211,7 +243,8 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
                 Kéo thả file vào đây hoặc click để chọn
               </p>
               <p className="ant-upload-hint">
-                File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại
+                File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại hoặc
+                IMSI
               </p>
             </Upload.Dragger>
             <Divider plain style={{ margin: "4px 0" }}>
@@ -243,7 +276,15 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
             dataSource={dataSource}
             targetKeys={targetKeys}
             loading={simsLoading}
-            onChange={(nextKeys) => setTargetKeys(nextKeys)}
+            onChange={(nextKeys) => {
+              setTargetKeys(nextKeys);
+              setUploadedIdentifiers((currentIdentifiers) =>
+                currentIdentifiers.filter((identifier) => {
+                  const simId = simIdByIdentifier.get(identifier);
+                  return !simId || nextKeys.includes(simId);
+                }),
+              );
+            }}
           />
         </Form.Item>
       </Form>
