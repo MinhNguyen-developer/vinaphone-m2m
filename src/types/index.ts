@@ -276,6 +276,7 @@ export interface QueryMasterSimParams extends QueryPaginatedparams {
   imsi?: string;
   contractCode?: string;
   ratingPlanId?: number;
+  groupName?: string;
   sort?: string;
   groupId?: string;
 }

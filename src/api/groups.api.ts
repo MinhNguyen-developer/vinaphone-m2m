@@ -10,6 +10,8 @@ export interface GroupFormValues {
   name: string;
   description?: string;
   simIds?: string[];
+  /** Số điện thoại hoặc IMSI dùng để xác định SIM khi tạo/cập nhật nhóm. */
+  simIdentifiers?: string[];
 }
 
 export const groupsApi = {
