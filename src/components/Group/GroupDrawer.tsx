@@ -77,7 +77,7 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     const identifiers = new Map<string, string>();
     allSims.forEach((sim) => {
       identifiers.set(sim.phoneNumber, sim.id);
-      if (sim.imsi) identifiers.set(sim.imsi, sim.id);
+      if (sim.internalImsi) identifiers.set(sim.internalImsi, sim.id);
     });
     return identifiers;
   }, [allSims]);
@@ -244,7 +244,7 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
               </p>
               <p className="ant-upload-hint">
                 File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại hoặc
-                IMSI
+                IMSI nội bộ (10 số cuối)
               </p>
             </Upload.Dragger>
             <Divider plain style={{ margin: "4px 0" }}>

@@ -150,6 +150,7 @@ export interface SimCard {
   id: string;
   phoneNumber: string;
   imsi?: string;
+  internalImsi?: string | null;
   iccid?: string | null;
   contractCode?: string;
   contractDate?: string | null;
@@ -233,6 +234,7 @@ export interface SimListParams {
   // quickSearch fields (synced with URL)
   msisdn?: string;
   imsi?: string;
+  internalImsi?: string;
   ratingPlanId?: number;
   ratingPlanType?: string;
   contractCode?: string;
@@ -262,6 +264,7 @@ export interface QueryPaginatedparams {
 
 export interface QueryGroupMembersParams extends QueryPaginatedparams {
   msisdn?: string;
+  internalImsi?: string;
   sort?: string;
 }
 

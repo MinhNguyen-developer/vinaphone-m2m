@@ -88,7 +88,7 @@ export const useUpdateManySimStatus = () => {
   });
 };
 
-/** POST /sims/bulk-cancel – hủy hàng loạt SIM theo số điện thoại hoặc IMSI */
+/** POST /sims/bulk-cancel – hủy hàng loạt SIM theo SĐT hoặc IMSI nội bộ */
 export const useBulkCancelSims = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -99,7 +99,7 @@ export const useBulkCancelSims = () => {
   });
 };
 
-/** POST /sims/bulk-reset – reset hàng loạt SIM theo số điện thoại hoặc IMSI */
+/** POST /sims/bulk-reset – reset hàng loạt SIM theo SĐT hoặc IMSI nội bộ */
 export const useBulkResetSims = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -110,7 +110,7 @@ export const useBulkResetSims = () => {
   });
 };
 
-/** POST /sims/bulk-lock – tạm khoá hàng loạt SIM theo số điện thoại hoặc IMSI */
+/** POST /sims/bulk-lock – tạm khoá hàng loạt SIM theo SĐT hoặc IMSI nội bộ */
 export const useBulkLockSims = () => {
   const queryClient = useQueryClient();
   return useMutation({

@@ -80,6 +80,7 @@ const { RangePicker } = DatePicker;
 const ALL_COLUMN_KEYS = [
   "phone",
   "imsi",
+  "internalImsi",
   "groupName",
   "contract",
   "ratingPlan",
@@ -100,6 +101,7 @@ type ColumnKey = (typeof ALL_COLUMN_KEYS)[number];
 const COLUMN_LABELS: Record<ColumnKey, string> = {
   phone: "Số điện thoại",
   imsi: "IMSI",
+  internalImsi: "IMSI nội bộ",
   groupName: "Nhóm thuê bao",
   contract: "Mã hợp đồng",
   ratingPlan: "Gói cước",
@@ -119,6 +121,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
 const DEFAULT_VISIBLE: ColumnKey[] = [
   "phone",
   "imsi",
+  "internalImsi",
   "vinaphoneActivatedAt",
   "vinaphoneStatus",
   "simGroups",
@@ -129,12 +132,14 @@ const DEFAULT_VISIBLE: ColumnKey[] = [
   "action",
 ];
 
-const STORAGE_KEY = "sim-column-visibility-v2";
+const STORAGE_KEY = "sim-column-visibility-v3";
+const MIGRATED_VISIBLE_COLUMNS: readonly ColumnKey[] = ["internalImsi"];
 
 // ─── Filter keys ──────────────────────────────────────────────────────────
 
 const ALL_FILTER_KEYS = [
   "search",
+  "internalImsi",
   "contractCode",
   "ratingPlanId",
   "status",
@@ -151,6 +156,7 @@ type FilterKey = (typeof ALL_FILTER_KEYS)[number];
 
 const DEFAULT_VISIBLE_FILTER_KEYS: FilterKey[] = [
   "search",
+  "internalImsi",
   "simCode",
   "vinaphoneStatus",
   "groupId",
@@ -177,6 +183,8 @@ const ALL_EXPORT_COLUMNS: ExportColumn[] = ALL_COLUMN_KEYS.map((key) => {
         return s.phoneNumber;
       case "imsi":
         return s.imsi ?? "";
+      case "internalImsi":
+        return s.internalImsi ?? "";
       case "groupName":
         return s.groupName ?? "";
       case "contract":
@@ -226,6 +234,7 @@ const ALL_EXPORT_COLUMNS: ExportColumn[] = ALL_COLUMN_KEYS.map((key) => {
 const DEFAULT_EXPORT_KEYS: ColumnKey[] = [
   "phone",
   "imsi",
+  "internalImsi",
   "contract",
   "ratingPlan",
   "vinaphoneActivatedAt",
@@ -343,7 +352,20 @@ const SimManagement: React.FC = () => {
         colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
         render: (value, onChange) => (
           <DebouncedInput
-            placeholder="Tìm kiếm SĐT, IMSI"
+            placeholder="Tìm kiếm SĐT, IMSI, IMSI nội bộ"
+            prefix={<SearchOutlined />}
+            value={(value as string) ?? ""}
+            onChange={onChange}
+          />
+        ),
+      },
+      {
+        filterKey: "internalImsi",
+        label: "IMSI nội bộ",
+        colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
+        render: (value, onChange) => (
+          <DebouncedInput
+            placeholder="Tìm IMSI nội bộ"
             prefix={<SearchOutlined />}
             value={(value as string) ?? ""}
             onChange={onChange}
@@ -601,6 +623,7 @@ const SimManagement: React.FC = () => {
     ];
     return {
       search: (filterValues.search as string) || undefined,
+      internalImsi: (filterValues.internalImsi as string) || undefined,
       contractCode: (filterValues.contractCode as string) || undefined,
       status: toNum(filterValues.status),
       vinaphoneStatus: toNum(filterValues.vinaphoneStatus),
@@ -699,12 +722,11 @@ const SimManagement: React.FC = () => {
       title: "IMSI",
       dataIndex: "imsi",
       key: "imsi",
-      width: 155,
+      width: 180,
       render: (v: string | null) => {
-        const imsi = v?.slice(-10);
         return v ? (
-          <Text copyable={{ text: imsi }} style={{ fontSize: 11 }}>
-            {imsi}
+          <Text copyable={{ text: v }} style={{ fontSize: 11 }}>
+            {v}
           </Text>
         ) : (
           <Text type="secondary">—</Text>
@@ -716,6 +738,43 @@ const SimManagement: React.FC = () => {
           ? "ascend"
           : "descend"
         : null,
+    },
+    {
+      colKey: "internalImsi",
+      title: "IMSI nội bộ",
+      dataIndex: "internalImsi",
+      key: "internalImsi",
+      width: 150,
+      render: (v: string | null) =>
+        v ? (
+          <Text copyable={{ text: v }} style={{ fontSize: 11 }}>
+            {v}
+          </Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+      sorter: true,
+      sortOrder: (filterValues.sort as string)?.startsWith("internalImsi:")
+        ? (filterValues.sort as string).endsWith(":asc")
+          ? "ascend"
+          : "descend"
+        : null,
+      filterDropdown: ({ confirm, close }) => (
+        <CustomTableFilter
+          filterKey="internalImsi"
+          setFilterValue={setFilterValue}
+          confirm={confirm}
+          close={close}
+          placeholder="Tìm theo IMSI nội bộ"
+        />
+      ),
+      filterIcon: () => (
+        <SearchOutlined
+          style={{
+            color: !!filterValues.internalImsi ? "#1677ff" : undefined,
+          }}
+        />
+      ),
     },
     {
       colKey: "simCode",
@@ -1181,6 +1240,8 @@ const SimManagement: React.FC = () => {
     allColumnsKeys: ALL_COLUMN_KEYS,
     columnLabels: COLUMN_LABELS,
     defaultVisibleKeys: DEFAULT_VISIBLE,
+    legacyStorageKey: "sim-column-visibility-v2",
+    addVisibleKeysOnMigration: MIGRATED_VISIBLE_COLUMNS,
   });
 
   // ── Export ────────────────────────────────────────────────────────────
@@ -1322,7 +1383,7 @@ const SimManagement: React.FC = () => {
                 setSelectedRowKeys={setSelectedRowKeys}
               />
             )}
-            <Tooltip title="Hủy hàng loạt SIM theo số điện thoại/IMSI">
+            <Tooltip title="Hủy hàng loạt SIM theo số điện thoại/IMSI nội bộ">
               <Button
                 danger
                 icon={<StopOutlined />}
@@ -1331,7 +1392,7 @@ const SimManagement: React.FC = () => {
                 Hủy SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Tạm khoá hàng loạt SIM theo số điện thoại/IMSI">
+            <Tooltip title="Tạm khoá hàng loạt SIM theo số điện thoại/IMSI nội bộ">
               <Button
                 icon={<LockOutlined />}
                 onClick={() => setBulkActionModal("lock")}
@@ -1339,7 +1400,7 @@ const SimManagement: React.FC = () => {
                 Khoá SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Chuyển trạng thái Chờ khoá hàng loạt SIM theo số điện thoại/IMSI">
+            <Tooltip title="Chuyển trạng thái Chờ khoá hàng loạt SIM theo số điện thoại/IMSI nội bộ">
               <Button
                 icon={<ClockCircleOutlined />}
                 onClick={() => setBulkActionModal("pendingLock")}
@@ -1347,7 +1408,7 @@ const SimManagement: React.FC = () => {
                 Chờ khoá SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Chuyển trạng thái Chờ thu hồi hàng loạt SIM theo số điện thoại/IMSI">
+            <Tooltip title="Chuyển trạng thái Chờ thu hồi hàng loạt SIM theo số điện thoại/IMSI nội bộ">
               <Button
                 icon={<ClockCircleOutlined />}
                 onClick={() => setBulkActionModal("pendingRevoke")}
@@ -1355,7 +1416,7 @@ const SimManagement: React.FC = () => {
                 Chờ thu hồi SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Chuyển trạng thái Chờ huỷ hàng loạt SIM theo số điện thoại/IMSI">
+            <Tooltip title="Chuyển trạng thái Chờ huỷ hàng loạt SIM theo số điện thoại/IMSI nội bộ">
               <Button
                 icon={<ClockCircleOutlined />}
                 onClick={() => setBulkActionModal("pendingCancel")}
@@ -1363,7 +1424,7 @@ const SimManagement: React.FC = () => {
                 Chờ huỷ SIM
               </Button>
             </Tooltip>
-            <Tooltip title="Reset hàng loạt SIM theo số điện thoại/IMSI">
+            <Tooltip title="Reset hàng loạt SIM theo số điện thoại/IMSI nội bộ">
               <Button
                 icon={<ReloadOutlined />}
                 onClick={() => setBulkActionModal("reset")}

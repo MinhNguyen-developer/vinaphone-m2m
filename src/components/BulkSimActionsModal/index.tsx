@@ -179,7 +179,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
 
     if (result.notFound > 0) {
       message.warning(
-        `${result.notFound} số điện thoại/IMSI không tìm thấy trong hệ thống`,
+        `${result.notFound} số điện thoại/IMSI nội bộ không tìm thấy trong hệ thống`,
         6,
       );
     }
@@ -190,7 +190,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
 
   const handleConfirm = () => {
     if (parsed.length === 0) {
-      message.warning("Vui lòng nhập ít nhất 1 số điện thoại hoặc IMSI!");
+      message.warning("Vui lòng nhập ít nhất 1 số điện thoại hoặc IMSI nội bộ!");
       return;
     }
 
@@ -279,7 +279,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
             </p>
             <p className="ant-upload-hint">
               File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại hoặc
-              IMSI
+              IMSI nội bộ (10 số cuối)
             </p>
           </Upload.Dragger>
         </div>
@@ -287,7 +287,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
           hoặc nhập tay
         </Divider>
         <div>
-          <Text strong>Danh sách số điện thoại/IMSI</Text>
+          <Text strong>Danh sách số điện thoại/IMSI nội bộ</Text>
           <Input.TextArea
             rows={4}
             placeholder={placeholder}
@@ -297,7 +297,7 @@ export const BulkSimActionsModal: React.FC<BulkSimActionsModalProps> = ({
           />
           {parsed.length > 0 && (
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Đã nhận {parsed.length} số điện thoại/IMSI
+              Đã nhận {parsed.length} số điện thoại/IMSI nội bộ
             </Text>
           )}
         </div>

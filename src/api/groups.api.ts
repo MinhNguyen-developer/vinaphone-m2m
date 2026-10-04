@@ -10,7 +10,7 @@ export interface GroupFormValues {
   name: string;
   description?: string;
   simIds?: string[];
-  /** Số điện thoại hoặc IMSI dùng để xác định SIM khi tạo/cập nhật nhóm. */
+  /** Số điện thoại hoặc IMSI nội bộ (10 số cuối) dùng để xác định SIM. */
   simIdentifiers?: string[];
 }
 

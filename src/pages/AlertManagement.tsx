@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import dayjs from "dayjs";
 import {
   Card,
@@ -332,6 +332,7 @@ const AlertManagement: React.FC = () => {
   const [filterAlertLabel, setFilterAlertLabel] = useState<
     string | undefined
   >();
+  const [filterInternalImsi, setFilterInternalImsi] = useState("");
   const { data: triggeredData, isLoading: triggeredLoading } =
     useTriggeredAlerts({
       groupId: filterGroupId,
@@ -372,6 +373,13 @@ const AlertManagement: React.FC = () => {
 
   const sims = simsData?.data ?? [];
   const triggeredList: TriggeredAlert[] = triggeredData?.data ?? [];
+  const filteredTriggeredList = useMemo(() => {
+    const filter = filterInternalImsi.trim().toLowerCase();
+    if (!filter) return triggeredList;
+    return triggeredList.filter((record) =>
+      (record.sim.internalImsi ?? "").toLowerCase().includes(filter),
+    );
+  }, [filterInternalImsi, triggeredList]);
 
   const alertColumns: ColumnsType<AlertConfig> = [
     {
@@ -504,6 +512,22 @@ const AlertManagement: React.FC = () => {
           <Text type="secondary">—</Text>
         );
       },
+    },
+    {
+      title: "IMSI nội bộ",
+      key: "internalImsi",
+      sorter: (a, b) => compareText(a.sim.internalImsi, b.sim.internalImsi),
+      render: (_: unknown, r: TriggeredAlert) =>
+        r.sim.internalImsi ? (
+          <Text
+            copyable={{ text: r.sim.internalImsi }}
+            style={{ fontSize: 11, fontFamily: "monospace" }}
+          >
+            {r.sim.internalImsi}
+          </Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
     },
     {
       title: "Mã SIM",
@@ -642,7 +666,7 @@ const AlertManagement: React.FC = () => {
       label: (
         <span>
           <BellFilled style={{ color: "#ff4d4f" }} /> Danh sách cảnh báo (
-          {triggeredList.length})
+          {filteredTriggeredList.length})
         </span>
       ),
       children: (
@@ -654,6 +678,12 @@ const AlertManagement: React.FC = () => {
                 prefix={<SearchOutlined />}
                 value={filterAlertLabel ?? ""}
                 onChange={setFilterAlertLabel}
+              />
+              <DebouncedInput
+                placeholder="Tìm IMSI nội bộ"
+                prefix={<SearchOutlined />}
+                value={filterInternalImsi}
+                onChange={setFilterInternalImsi}
               />
               <ServerSelect
                 queryKey={queryKeys.groups.all}
@@ -701,7 +731,7 @@ const AlertManagement: React.FC = () => {
           </Card>
           {triggeredLoading ? (
             <Spin style={{ display: "block", margin: "40px auto" }} />
-          ) : triggeredList.length === 0 ? (
+          ) : filteredTriggeredList.length === 0 ? (
             <Alert
               title="Không có SIM nào vượt ngưỡng cảnh báo."
               type="success"
@@ -710,13 +740,13 @@ const AlertManagement: React.FC = () => {
           ) : (
             <Card>
               <Alert
-                title={`${triggeredList.length} SIM đang vượt ngưỡng. Cần kiểm tra!`}
+                title={`${filteredTriggeredList.length} SIM đang vượt ngưỡng. Cần kiểm tra!`}
                 type="error"
                 showIcon
                 style={{ marginBottom: 16 }}
               />
               <Table
-                dataSource={triggeredList}
+                dataSource={filteredTriggeredList}
                 rowKey={(r) => `${r.sim.id}|${r.alert.id}`}
                 size="middle"
                 scroll={{ x: "max-content" }}

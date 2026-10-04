@@ -114,7 +114,7 @@ export const simsApi = {
 
   /**
    * POST /sims/bulk-cancel
-   * Hủy hàng loạt SIM theo số điện thoại hoặc IMSI
+   * Hủy hàng loạt SIM theo số điện thoại hoặc IMSI nội bộ
    */
   bulkCancelSims: async (
     numbers: string[],
@@ -129,7 +129,7 @@ export const simsApi = {
 
   /**
    * POST /sims/bulk-reset
-   * Reset hàng loạt SIM theo số điện thoại hoặc IMSI
+   * Reset hàng loạt SIM theo số điện thoại hoặc IMSI nội bộ
    */
   bulkResetSims: async (
     numbers: string[],
