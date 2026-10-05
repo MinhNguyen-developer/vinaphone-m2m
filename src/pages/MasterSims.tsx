@@ -73,7 +73,7 @@ const MasterSims: React.FC = () => {
         colSpan: { xs: 24, sm: 12, md: 6, lg: 4 },
         render: (value, onChange) => (
           <DebouncedInput
-            placeholder="Tìm kiếm SĐT, IMSI"
+            placeholder="Tìm kiếm SĐT, IMSI, IMSI nội bộ"
             prefix={<SearchOutlined />}
             value={(value as string) ?? ""}
             onChange={onChange}
@@ -272,15 +272,29 @@ const MasterSims: React.FC = () => {
       sorter: true,
       sortOrder: sortOrder("imsi"),
       render: (v: string | null) => {
-        const imsi = v?.slice(-10);
         return v ? (
-          <Text copyable={{ text: imsi }} style={{ fontSize: 11 }}>
-            {imsi}
+          <Text copyable={{ text: v }} style={{ fontSize: 11 }}>
+            {v}
           </Text>
         ) : (
           <Text type="secondary">—</Text>
         );
       },
+    },
+    {
+      title: "IMSI nội bộ",
+      dataIndex: "internalImsi",
+      key: "internalImsi",
+      sorter: true,
+      sortOrder: sortOrder("internalImsi"),
+      render: (v: string | null) =>
+        v ? (
+          <Text copyable={{ text: v }} style={{ fontSize: 11 }}>
+            {v}
+          </Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
     },
     {
       title: "Mã hợp đồng",

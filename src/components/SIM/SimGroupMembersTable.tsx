@@ -71,6 +71,7 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
     page: pagination?.current,
     pageSize: pagination?.pageSize,
     msisdn: debouncedFilter,
+    internalImsi: debouncedFilter,
     sort,
   };
 
@@ -99,6 +100,24 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
             style={{ fontSize: 11, fontFamily: "monospace" }}
           >
             {v.slice(-10)}
+          </Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "IMSI nội bộ",
+      dataIndex: "internalImsi",
+      key: "internalImsi",
+      sorter: true,
+      sortOrder: getSortOrder(sort, "internalImsi"),
+      render: (v: string | null) =>
+        v ? (
+          <Text
+            copyable={{ text: v }}
+            style={{ fontSize: 11, fontFamily: "monospace" }}
+          >
+            {v}
           </Text>
         ) : (
           <Text type="secondary">—</Text>
@@ -226,7 +245,7 @@ const SimGroupMembersTable: React.FC<Props> = ({ groupId }) => {
   return (
     <div>
       <Input
-        placeholder="Tìm số điện thoại..."
+        placeholder="Tìm số điện thoại hoặc IMSI nội bộ..."
         prefix={<SearchOutlined />}
         value={msisdnFilter}
         onChange={handleSearch}

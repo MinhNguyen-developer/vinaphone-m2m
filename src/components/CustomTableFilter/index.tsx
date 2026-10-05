@@ -9,6 +9,7 @@ interface CustomTableFilterProps<TKey extends string> extends Pick<
 > {
   filterKey: TKey;
   setFilterValue: (key: TKey, value: unknown) => void;
+  placeholder?: string;
 }
 
 export const CustomTableFilter = <TKey extends string>({
@@ -16,13 +17,14 @@ export const CustomTableFilter = <TKey extends string>({
   setFilterValue,
   confirm,
   close,
+  placeholder = "Tìm theo SĐT",
 }: CustomTableFilterProps<TKey>) => {
   const [searchValue, setSearchValue] = useState<string>();
 
   return (
     <div style={{ padding: 8 }} onKeyDown={(e) => e.stopPropagation()}>
       <Input
-        placeholder="Tìm theo SĐT"
+        placeholder={placeholder}
         style={{ marginBottom: 8, display: "block" }}
         value={searchValue ?? ""}
         onChange={(e) => setSearchValue(e.target.value)}

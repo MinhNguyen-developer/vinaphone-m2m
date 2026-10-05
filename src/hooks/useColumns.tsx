@@ -10,6 +10,8 @@ interface UseColumnsProps<TKey extends string, TRow> {
   localStorageKey: string;
   columnLabels: Record<TKey, string>;
   defaultVisibleKeys?: readonly TKey[];
+  legacyStorageKey?: string;
+  addVisibleKeysOnMigration?: readonly TKey[];
 }
 
 export function useColumns<TKey extends string, TRow>({
@@ -18,24 +20,49 @@ export function useColumns<TKey extends string, TRow>({
   allColumnsKeys,
   columnLabels,
   defaultVisibleKeys = [] as unknown as readonly TKey[],
+  legacyStorageKey,
+  addVisibleKeysOnMigration = [],
 }: UseColumnsProps<TKey, TRow>) {
   const loadVisibleKeys = useCallback((): TKey[] => {
     try {
-      const stored = localStorage.getItem(localStorageKey);
+      const stored =
+        localStorage.getItem(localStorageKey) ??
+        (legacyStorageKey ? localStorage.getItem(legacyStorageKey) : null);
       if (stored) {
         const parsed = JSON.parse(stored) as unknown[];
         if (Array.isArray(parsed)) {
           const valid = parsed.filter((k): k is TKey =>
             allColumnsKeys.includes(k as TKey),
           );
-          if (valid.length > 0) return valid;
+          if (valid.length > 0) {
+            const isMigrating =
+              !localStorage.getItem(localStorageKey) && !!legacyStorageKey;
+            const migrated = isMigrating
+              ? [
+                  ...valid,
+                  ...addVisibleKeysOnMigration.filter(
+                    (key) => !valid.includes(key),
+                  ),
+                ]
+              : valid;
+            if (isMigrating) {
+              localStorage.setItem(localStorageKey, JSON.stringify(migrated));
+            }
+            return migrated;
+          }
         }
       }
     } catch {
       /* ignore */
     }
     return [...defaultVisibleKeys] as TKey[];
-  }, [allColumnsKeys, defaultVisibleKeys, localStorageKey]);
+  }, [
+    addVisibleKeysOnMigration,
+    allColumnsKeys,
+    defaultVisibleKeys,
+    legacyStorageKey,
+    localStorageKey,
+  ]);
 
   const saveVisibleColumns = useCallback(
     (keys: readonly TKey[]) => {
