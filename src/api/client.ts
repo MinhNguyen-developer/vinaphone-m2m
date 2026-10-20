@@ -15,18 +15,21 @@ export const apiClient = axios.create({
     qs.stringify(params, { arrayFormat: "repeat", skipNulls: true }),
 });
 
-// Attach JWT token from persisted auth store
-apiClient.interceptors.request.use((config) => {
+export function getAccessToken() {
   try {
     const raw = localStorage.getItem("vinaphone-auth");
-    if (raw) {
-      const token = (JSON.parse(raw) as { state?: { token?: string } }).state
-        ?.token;
-      if (token) config.headers.Authorization = `Bearer ${token}`;
-    }
+    return raw
+      ? (JSON.parse(raw) as { state?: { token?: string } }).state?.token
+      : undefined;
   } catch {
-    // ignore JSON parse errors
+    return undefined;
   }
+}
+
+// Attach JWT token from persisted auth store
+apiClient.interceptors.request.use((config) => {
+  const token = getAccessToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
