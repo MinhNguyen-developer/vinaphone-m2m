@@ -1,4 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  createElement,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type PropsWithChildren,
+} from "react";
 import { isAxiosError } from "axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { message } from "antd";
@@ -21,7 +29,7 @@ function getSyncError(error: unknown) {
   return error instanceof Error ? error.message : "Đồng bộ thất bại.";
 }
 
-export function useSync() {
+function useSyncController() {
   const qc = useQueryClient();
   const previousUpdates = useRef<Partial<Record<SyncJobName, string>>>({});
   const [statuses, setStatuses] = useState<SyncStatusResponse>();
@@ -140,4 +148,22 @@ export function useSync() {
         : undefined,
     },
   };
+}
+
+type SyncContextValue = ReturnType<typeof useSyncController>;
+
+const SyncContext = createContext<SyncContextValue | null>(null);
+
+export const SyncProvider = ({ children }: PropsWithChildren) => {
+  const sync = useSyncController();
+
+  return createElement(SyncContext.Provider, { value: sync, children });
+};
+
+export function useSync() {
+  const sync = useContext(SyncContext);
+  if (!sync) {
+    throw new Error("useSync must be used within a SyncProvider");
+  }
+  return sync;
 }

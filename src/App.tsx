@@ -1,6 +1,6 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ConfigProvider } from "antd";
 import viVN from "antd/locale/vi_VN";
 import AppLayout from "./components/Layout/AppLayout";
@@ -13,15 +13,7 @@ import MasterSims from "./pages/MasterSims";
 import UsageHistory from "./pages/UsageHistory";
 import Login from "./pages/Login";
 import { useAuthStore } from "./store/useAuthStore";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+import { queryClient } from "./queryClient";
 
 /** Redirects unauthenticated users to /login */
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({

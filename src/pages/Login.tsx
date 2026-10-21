@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button, Card, Form, Input, message, Typography } from 'antd';
-import { LockOutlined, UserOutlined } from '@ant-design/icons';
+import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/useAuthStore';
@@ -12,16 +12,16 @@ const Login: React.FC = () => {
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
 
-  const handleLogin = async (values: { username: string; password: string }) => {
+  const handleLogin = async (values: { email: string; password: string }) => {
     setLoading(true);
     try {
       const res = await authApi.login(values);
-      setAuth(res.access_token, values.username);
+      setAuth(res.access_token, values.email);
       void navigate('/');
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Đăng nhập thất bại. Vui lòng kiểm tra lại tên đăng nhập / mật khẩu.';
+        'Đăng nhập thất bại. Vui lòng kiểm tra email / mật khẩu Vinaphone.';
       void message.error(msg);
     } finally {
       setLoading(false);
@@ -48,17 +48,21 @@ const Login: React.FC = () => {
 
         <Form layout="vertical" onFinish={handleLogin} autoComplete="off">
           <Form.Item
-            name="username"
-            rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập!' }]}
+            name="email"
+            normalize={(value: string) => value.trim().toLowerCase()}
+            rules={[
+              { required: true, message: 'Vui lòng nhập email Vinaphone!' },
+              { type: 'email', message: 'Email không hợp lệ!' },
+            ]}
           >
-            <Input prefix={<UserOutlined />} placeholder="Tên đăng nhập" size="large" />
+            <Input prefix={<MailOutlined />} placeholder="Email Vinaphone" size="large" autoComplete="username" />
           </Form.Item>
 
           <Form.Item
             name="password"
             rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu" size="large" />
+            <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu Vinaphone" size="large" autoComplete="current-password" />
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0 }}>
