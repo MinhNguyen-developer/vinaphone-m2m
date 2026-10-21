@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { queryClient } from '../queryClient';
 
 interface AuthState {
   token: string | null;
@@ -13,8 +14,14 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       username: null,
-      setAuth: (token, username) => set({ token, username }),
-      logout: () => set({ token: null, username: null }),
+      setAuth: (token, username) => {
+        queryClient.clear();
+        set({ token, username });
+      },
+      logout: () => {
+        queryClient.clear();
+        set({ token: null, username: null });
+      },
     }),
     { name: 'vinaphone-auth' },
   ),

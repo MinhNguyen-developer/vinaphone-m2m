@@ -315,13 +315,14 @@ export interface TriggeredAlertsResponse {
 }
 
 export interface LoginRequest {
-  username: string;
+  email: string;
   password: string;
 }
 
 export interface LoginResponse {
   access_token: string;
-  expires_in: string;
+  expires_in: number;
+  expires_at: string;
 }
 
 /** @deprecated - kept for internal store types only */

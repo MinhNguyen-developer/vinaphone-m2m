@@ -13,7 +13,9 @@ import {
 } from "@ant-design/icons";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTriggeredAlerts } from "../../hooks/useAlerts";
+import { SyncProvider } from "../../hooks/useSync";
 import { useAuthStore } from "../../store/useAuthStore";
+import { SyncProgressDropdown } from "./SyncProgressDropdown";
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -23,7 +25,7 @@ interface Props {
   children: React.ReactNode;
 }
 
-const AppLayout: React.FC<Props> = ({ children }) => {
+const AppLayoutContent: React.FC<Props> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
@@ -219,6 +221,7 @@ const AppLayout: React.FC<Props> = ({ children }) => {
               onClick={() => navigate("/alerts")}
             />
           )}
+          <SyncProgressDropdown />
           <Button
             type="text"
             icon={<LogoutOutlined />}
@@ -245,5 +248,11 @@ const AppLayout: React.FC<Props> = ({ children }) => {
     </Layout>
   );
 };
+
+const AppLayout: React.FC<Props> = ({ children }) => (
+  <SyncProvider>
+    <AppLayoutContent>{children}</AppLayoutContent>
+  </SyncProvider>
+);
 
 export default AppLayout;
