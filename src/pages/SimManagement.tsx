@@ -385,15 +385,23 @@ const SimManagement: React.FC = () => {
             placeholder="Mã SIM"
             getOptionLabel={(item) => item.code}
             getOptionValue={(item) => item.id}
+            mode="multiple"
+            maxTagCount="responsive"
             value={value}
             onChange={onChange}
             popupMatchSelectWidth={200}
             allowClear
             style={{
               width: "100%",
+              minWidth: 180,
             }}
           />
         ),
+        toUrlParams: (value) => ({
+          simCode: (value as string[] | undefined)?.join(",") || undefined,
+        }),
+        fromUrlParams: (params) =>
+          params.get("simCode")?.split(",").filter(Boolean),
       },
       {
         filterKey: "groupName",
@@ -636,7 +644,9 @@ const SimManagement: React.FC = () => {
       groupName: (filterValues.groupName as string) || undefined,
       groupId: filterValues.groupId as string | string[] | undefined,
       sogIsOwner: toNum(filterValues.sogIsOwner),
-      simCode: (filterValues.simCode as string) || undefined,
+      simCode: (filterValues.simCode as string[] | undefined)?.length
+        ? (filterValues.simCode as string[])
+        : undefined,
       sort: (filterValues.sort as string) || undefined,
     };
   }, [filterValues, pagination]);

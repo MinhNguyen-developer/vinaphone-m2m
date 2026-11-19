@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Button,
   Divider,
   Drawer,
@@ -21,6 +22,7 @@ import {
 import { useAllSims } from "../../hooks/useSims";
 import type { SimTransferItem } from "../Group/TableTransfer";
 import TableTransfer from "../Group/TableTransfer";
+import { resolveSimIdentifiers } from "../../utils/simIdentifiers";
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -53,18 +55,32 @@ const SimCodeDrawer: React.FC<SimCodeDrawerProps> = ({
     useUpdateSimCode();
 
   // Fetch all SIMs once for the transfer list
-  const { data: allSims = [], isLoading: simsLoading } = useAllSims();
+  const {
+    data: allSims = [],
+    isLoading: simsLoading,
+    isError: simsError,
+    refetch: refetchSims,
+  } = useAllSims();
 
   // Edit mode: fetch current SIM IDs for this SimCode
-  const { data: existingSimIds = [] } = useSimCodeSimIds(
+  const {
+    data: existingSimIds,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useSimCodeSimIds(
     open && mode === "edit" ? (editingItem?.id ?? null) : null,
   );
+
+  const membersLoading = mode === "edit" && existingSimIds === undefined;
+  const loadError = simsError || (mode === "edit" && membersError);
+  const canEditSims = !simsLoading && !membersLoading && !loadError;
 
   const dataSource: SimTransferItem[] = useMemo(
     () =>
       allSims.map((s) => ({
         key: s.id,
         phoneNumber: s.phoneNumber,
+        internalImsi: s.internalImsi ?? s.imsi?.slice(-10),
         ratingPlan: s.ratingPlanName ?? s.productCode,
       })),
     [allSims],
@@ -86,7 +102,7 @@ const SimCodeDrawer: React.FC<SimCodeDrawerProps> = ({
 
   // When existingSimIds arrives (edit mode), set targetKeys
   useEffect(() => {
-    if (!open || mode !== "edit" || !existingSimIds.length) return;
+    if (!open || mode !== "edit" || !existingSimIds) return;
     setTargetKeys(existingSimIds);
   }, [open, mode, existingSimIds]);
 
@@ -97,55 +113,35 @@ const SimCodeDrawer: React.FC<SimCodeDrawerProps> = ({
     onClose();
   };
 
+  const addSims = (input: string) => {
+    const { simIds, notFound } = resolveSimIdentifiers(input, allSims);
+    setTargetKeys((current) => [...new Set([...current, ...simIds])]);
+    if (simIds.length)
+      message.success(`Đã thêm ${simIds.length} SIM vào mã SIM`);
+    if (notFound.length)
+      message.warning(`Không tìm thấy: ${notFound.join(", ")}`);
+    return notFound;
+  };
+
   const handleCsvUpload = (file: RcFile): boolean => {
+    if (!canEditSims) return false;
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = (e.target?.result as string) ?? "";
-      const phones = text
-        .split(/[\n,;\r]+/)
-        .map((p) => p.trim())
-        .filter(Boolean);
-      if (!phones.length) return;
-      const phoneToId = new Map(allSims.map((s) => [s.phoneNumber, s.id]));
-      const found: string[] = [];
-      const notFound: string[] = [];
-      phones.forEach((p) => {
-        const id = phoneToId.get(p);
-        if (id) found.push(id);
-        else notFound.push(p);
-      });
-      setTargetKeys(Array.from(new Set([...targetKeys, ...found])));
-      if (found.length)
-        message.success(`Đã thêm ${found.length} SIM từ file vào mã SIM`);
-      if (notFound.length)
-        message.warning(`Không tìm thấy: ${notFound.join(", ")}`);
+      addSims((e.target?.result as string) ?? "");
     };
+    reader.onerror = () =>
+      message.error("Không thể đọc file. Vui lòng thử lại.");
     reader.readAsText(file);
     return false;
   };
 
   const handleAddByPhone = () => {
-    const phones = phoneInput
-      .split(/[\n,;]+/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-    if (!phones.length) return;
-    const phoneToId = new Map(allSims.map((s) => [s.phoneNumber, s.id]));
-    const found: string[] = [];
-    const notFound: string[] = [];
-    phones.forEach((p) => {
-      const id = phoneToId.get(p);
-      if (id) found.push(id);
-      else notFound.push(p);
-    });
-    setTargetKeys(Array.from(new Set([...targetKeys, ...found])));
-    setPhoneInput("");
-    if (found.length) message.success(`Đã thêm ${found.length} SIM vào mã SIM`);
-    if (notFound.length)
-      message.warning(`Không tìm thấy: ${notFound.join(", ")}`);
+    if (!canEditSims) return;
+    setPhoneInput(addSims(phoneInput).join("\n"));
   };
 
   const handleSubmit = async () => {
+    if (!canEditSims) return;
     const values = await form.validateFields();
     const dto = { ...values, simIds: targetKeys };
     if (mode === "create") {
@@ -172,6 +168,7 @@ const SimCodeDrawer: React.FC<SimCodeDrawerProps> = ({
           <Button
             type="primary"
             loading={creating || updating}
+            disabled={!canEditSims}
             onClick={handleSubmit}
           >
             {mode === "create" ? "Tạo mã SIM" : "Lưu thay đổi"}
@@ -196,12 +193,32 @@ const SimCodeDrawer: React.FC<SimCodeDrawerProps> = ({
         </Form.Item>
 
         <Form.Item label={`SIM trong mã (${targetKeys.length} đã chọn)`}>
+          {loadError && (
+            <Alert
+              type="error"
+              showIcon
+              title="Không tải được danh sách SIM. Vui lòng tải lại trước khi thêm hoặc lưu."
+              action={
+                <Button
+                  size="small"
+                  onClick={() => {
+                    void refetchSims();
+                    if (mode === "edit") void refetchMembers();
+                  }}
+                >
+                  Tải lại
+                </Button>
+              }
+              style={{ marginBottom: 12 }}
+            />
+          )}
           <div style={{ marginBottom: 8 }}>
             <Text strong>Tải lên file CSV</Text>
             <Upload.Dragger
               accept=".csv,.txt"
               beforeUpload={handleCsvUpload}
               showUploadList={false}
+              disabled={!canEditSims}
               style={{ marginTop: 6, marginBottom: 8 }}
             >
               <p className="ant-upload-drag-icon">
@@ -211,20 +228,22 @@ const SimCodeDrawer: React.FC<SimCodeDrawerProps> = ({
                 Kéo thả file vào đây hoặc click để chọn
               </p>
               <p className="ant-upload-hint">
-                File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại
+                File CSV 1 cột, không có tiêu đề, mỗi dòng 1 số điện thoại hoặc
+                IMSI nội bộ (10 số cuối)
               </p>
             </Upload.Dragger>
             <Divider plain style={{ margin: "4px 0" }}>
               hoặc nhập tay
             </Divider>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Nhập số điện thoại (xuống dòng để nhập nhiều số) để thêm nhanh vào
-              mã SIM:
+              Nhập số điện thoại hoặc IMSI nội bộ (10 số cuối), xuống dòng để
+              nhập nhiều SIM:
             </Text>
             <TextArea
               rows={3}
               placeholder={"0987654321\n0912345678\n..."}
               value={phoneInput}
+              disabled={!canEditSims}
               onChange={(e) => setPhoneInput(e.target.value)}
               style={{ marginTop: 4, fontFamily: "monospace", fontSize: 12 }}
             />
@@ -232,7 +251,7 @@ const SimCodeDrawer: React.FC<SimCodeDrawerProps> = ({
               icon={<PlusOutlined />}
               size="small"
               style={{ marginTop: 6 }}
-              disabled={!phoneInput.trim()}
+              disabled={!canEditSims || !phoneInput.trim()}
               onClick={handleAddByPhone}
             >
               Thêm vào mã SIM
@@ -242,7 +261,8 @@ const SimCodeDrawer: React.FC<SimCodeDrawerProps> = ({
           <TableTransfer
             dataSource={dataSource}
             targetKeys={targetKeys}
-            loading={simsLoading}
+            loading={simsLoading || membersLoading}
+            disabled={!canEditSims}
             onChange={(nextKeys) => setTargetKeys(nextKeys)}
           />
         </Form.Item>

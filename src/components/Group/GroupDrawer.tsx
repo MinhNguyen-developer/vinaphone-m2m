@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Button,
   Divider,
   Drawer,
@@ -20,6 +21,7 @@ import { useCreateGroup, useUpdateGroup } from "../../hooks/useGroups";
 import { useAllSims } from "../../hooks/useSims";
 import { groupsApi } from "../../api/groups.api";
 import { queryKeys } from "../../hooks/queryKeys";
+import { resolveSimIdentifiers } from "../../utils/simIdentifiers";
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -45,42 +47,44 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
   const [form] = Form.useForm<GroupFormValues>();
   const [targetKeys, setTargetKeys] = useState<string[]>([]);
   const [phoneInput, setPhoneInput] = useState("");
-  const [uploadedIdentifiers, setUploadedIdentifiers] = useState<string[]>(
-    [],
-  );
 
   const { mutateAsync: createGroup, isPending: creating } = useCreateGroup();
   const { mutateAsync: updateGroup, isPending: updating } = useUpdateGroup();
 
   // Fetch all SIMs once for the transfer list
-  const { data: allSims = [], isLoading: simsLoading } = useAllSims();
+  const {
+    data: allSims = [],
+    isLoading: simsLoading,
+    isError: simsError,
+    refetch: refetchSims,
+  } = useAllSims();
 
   // Edit mode: fetch the group's current SIM IDs to pre-populate right panel
-  const { data: groupSimIds = [] } = useQuery({
+  const {
+    data: groupSimIds,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useQuery({
     queryKey: [...queryKeys.groups.all, editingGroup?.id, "sim-ids"],
     queryFn: () => groupsApi.getSimIds(editingGroup!.id),
     enabled: open && mode === "edit" && !!editingGroup,
     staleTime: 30_000,
   });
 
+  const membersLoading = mode === "edit" && groupSimIds === undefined;
+  const loadError = simsError || (mode === "edit" && membersError);
+  const canEditSims = !simsLoading && !membersLoading && !loadError;
+
   const dataSource: SimTransferItem[] = useMemo(
     () =>
       allSims.map((s) => ({
         key: s.id,
         phoneNumber: s.phoneNumber,
+        internalImsi: s.internalImsi ?? s.imsi?.slice(-10),
         ratingPlan: s.ratingPlanName ?? s.productCode,
       })),
     [allSims],
   );
-
-  const simIdByIdentifier = useMemo(() => {
-    const identifiers = new Map<string, string>();
-    allSims.forEach((sim) => {
-      identifiers.set(sim.phoneNumber, sim.id);
-      if (sim.internalImsi) identifiers.set(sim.internalImsi, sim.id);
-    });
-    return identifiers;
-  }, [allSims]);
 
   // Pre-fill form on open
   useEffect(() => {
@@ -93,13 +97,12 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     } else {
       form.resetFields();
       setTargetKeys([]);
-      setUploadedIdentifiers([]);
     }
   }, [open, mode, editingGroup, form]);
 
   // When groupSimIds arrives (edit mode), set targetKeys
   useEffect(() => {
-    if (!open || mode !== "edit" || !groupSimIds.length) return;
+    if (!open || mode !== "edit" || !groupSimIds) return;
     setTargetKeys(groupSimIds);
   }, [open, mode, groupSimIds]);
 
@@ -107,78 +110,41 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
     form.resetFields();
     setTargetKeys([]);
     setPhoneInput("");
-    setUploadedIdentifiers([]);
     onClose();
   };
 
+  const addSims = (input: string) => {
+    const { simIds, notFound } = resolveSimIdentifiers(input, allSims);
+    setTargetKeys((current) => [...new Set([...current, ...simIds])]);
+    if (simIds.length) message.success(`Đã thêm ${simIds.length} SIM vào nhóm`);
+    if (notFound.length)
+      message.warning(`Không tìm thấy: ${notFound.join(", ")}`);
+    return notFound;
+  };
+
   const handleCsvUpload = (file: RcFile): boolean => {
+    if (!canEditSims) return false;
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = (e.target?.result as string) ?? "";
-      const identifiers = text
-        .split(/[\n,;\r]+/)
-        .map((p) => p.trim())
-        .filter(Boolean);
-      if (!identifiers.length) return;
-
-      const foundIds = new Set<string>();
-      const notFound: string[] = [];
-      identifiers.forEach((identifier) => {
-        const id = simIdByIdentifier.get(identifier);
-        if (id) foundIds.add(id);
-        else notFound.push(identifier);
-      });
-      const found = Array.from(foundIds);
-
-      setTargetKeys((currentKeys) =>
-        Array.from(new Set([...currentKeys, ...found])),
-      );
-      setUploadedIdentifiers((currentIdentifiers) =>
-        Array.from(
-          new Set([
-            ...currentIdentifiers,
-            ...identifiers.filter((identifier) =>
-              simIdByIdentifier.has(identifier),
-            ),
-          ]),
-        ),
-      );
-      if (found.length)
-        message.success(`Đã thêm ${found.length} SIM từ file vào nhóm`);
-      if (notFound.length)
-        message.warning(`Không tìm thấy: ${notFound.join(", ")}`);
+      addSims((e.target?.result as string) ?? "");
     };
+    reader.onerror = () =>
+      message.error("Không thể đọc file. Vui lòng thử lại.");
     reader.readAsText(file);
     return false;
   };
 
   const handleAddByPhone = () => {
-    const phones = phoneInput
-      .split(/[\n,;]+/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-    if (!phones.length) return;
-    const phoneToId = new Map(allSims.map((s) => [s.phoneNumber, s.id]));
-    const found: string[] = [];
-    const notFound: string[] = [];
-    phones.forEach((p) => {
-      const id = phoneToId.get(p);
-      if (id) found.push(id);
-      else notFound.push(p);
-    });
-    setTargetKeys(Array.from(new Set([...targetKeys, ...found])));
-    setPhoneInput("");
-    if (found.length) message.success(`Đã thêm ${found.length} SIM vào nhóm`);
-    if (notFound.length)
-      message.warning(`Không tìm thấy: ${notFound.join(", ")}`);
+    if (!canEditSims) return;
+    setPhoneInput(addSims(phoneInput).join("\n"));
   };
 
   const handleSubmit = async () => {
+    if (!canEditSims) return;
     const values = await form.validateFields();
     const dto = {
       ...values,
       simIds: targetKeys,
-      simIdentifiers: uploadedIdentifiers,
     };
     if (mode === "create") {
       await createGroup(dto);
@@ -204,6 +170,7 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
           <Button
             type="primary"
             loading={creating || updating}
+            disabled={!canEditSims}
             onClick={handleSubmit}
           >
             {mode === "create" ? "Tạo nhóm" : "Lưu thay đổi"}
@@ -228,12 +195,32 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
         </Form.Item>
 
         <Form.Item label={`SIM trong nhóm (${targetKeys.length} đã chọn)`}>
+          {loadError && (
+            <Alert
+              type="error"
+              showIcon
+              title="Không tải được danh sách SIM. Vui lòng tải lại trước khi thêm hoặc lưu."
+              action={
+                <Button
+                  size="small"
+                  onClick={() => {
+                    void refetchSims();
+                    if (mode === "edit") void refetchMembers();
+                  }}
+                >
+                  Tải lại
+                </Button>
+              }
+              style={{ marginBottom: 12 }}
+            />
+          )}
           <div style={{ marginBottom: 8 }}>
             <Text strong>Tải lên file CSV</Text>
             <Upload.Dragger
               accept=".csv,.txt"
               beforeUpload={handleCsvUpload}
               showUploadList={false}
+              disabled={!canEditSims}
               style={{ marginTop: 6, marginBottom: 8 }}
             >
               <p className="ant-upload-drag-icon">
@@ -251,13 +238,14 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
               hoặc nhập tay
             </Divider>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Nhập số điện thoại (xuống dòng để nhập nhiều số) để thêm nhanh vào
-              nhóm:
+              Nhập số điện thoại hoặc IMSI nội bộ (10 số cuối), xuống dòng để
+              nhập nhiều SIM:
             </Text>
             <TextArea
               rows={3}
               placeholder={"0987654321\n0912345678\n..."}
               value={phoneInput}
+              disabled={!canEditSims}
               onChange={(e) => setPhoneInput(e.target.value)}
               style={{ marginTop: 4, fontFamily: "monospace", fontSize: 12 }}
             />
@@ -265,7 +253,7 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
               icon={<PlusOutlined />}
               size="small"
               style={{ marginTop: 6 }}
-              disabled={!phoneInput.trim()}
+              disabled={!canEditSims || !phoneInput.trim()}
               onClick={handleAddByPhone}
             >
               Thêm vào nhóm
@@ -275,16 +263,9 @@ const GroupDrawer: React.FC<GroupDrawerProps> = ({
           <TableTransfer
             dataSource={dataSource}
             targetKeys={targetKeys}
-            loading={simsLoading}
-            onChange={(nextKeys) => {
-              setTargetKeys(nextKeys);
-              setUploadedIdentifiers((currentIdentifiers) =>
-                currentIdentifiers.filter((identifier) => {
-                  const simId = simIdByIdentifier.get(identifier);
-                  return !simId || nextKeys.includes(simId);
-                }),
-              );
-            }}
+            loading={simsLoading || membersLoading}
+            disabled={!canEditSims}
+            onChange={(nextKeys) => setTargetKeys(nextKeys)}
           />
         </Form.Item>
       </Form>

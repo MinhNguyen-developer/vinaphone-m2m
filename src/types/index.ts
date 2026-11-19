@@ -255,6 +255,7 @@ export interface SimListParams {
   search?: string;
   systemStatus?: string;
   groupId?: string | string[];
+  simCode?: string | string[];
 }
 
 export interface QueryPaginatedparams {
