@@ -11,11 +11,25 @@ import { apiClient } from "./client";
 
 export const simsApi = {
   /**
-   * GET /sims/all – all SIMs without pagination (for export / pickers)
+   * GET /sims/all – assemble all SIMs from bounded pages (for export / pickers)
    */
   getAll: async (): Promise<SimCard[]> => {
-    const res = await apiClient.get<SimCard[]>("/sims/all");
-    return res.data;
+    // Keep each response bounded for large accounts and serverless payload limits.
+    const sims: SimCard[] = [];
+    const pageSize = 500;
+    for (let page = 1; ; page += 1) {
+      const res = await apiClient.get<PaginatedResponse<SimCard> | SimCard[]>(
+        "/sims/all",
+        { params: { page, pageSize } },
+      );
+      // Older backends return the complete array regardless of pagination.
+      if (Array.isArray(res.data)) return res.data;
+      sims.push(...res.data.data);
+      if (sims.length >= res.data.total) return sims;
+      if (!res.data.data.length) {
+        throw new Error("Không thể tải đầy đủ danh sách SIM. Vui lòng thử lại.");
+      }
+    }
   },
 
   /**

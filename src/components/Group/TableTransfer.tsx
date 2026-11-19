@@ -13,6 +13,7 @@ type TableRowSelection<T extends object> = TableProps<T>["rowSelection"];
 export interface SimTransferItem extends TransferItem {
   key: string;
   phoneNumber: string;
+  internalImsi?: string | null;
   ratingPlan: string;
 }
 
@@ -20,6 +21,7 @@ export interface TableTransferProps {
   dataSource: SimTransferItem[];
   targetKeys: string[];
   loading?: boolean;
+  disabled?: boolean;
   onChange: (
     nextTargetKeys: string[],
     direction: "left" | "right",
@@ -29,6 +31,7 @@ export interface TableTransferProps {
 
 const simColumns: TableColumnsType<SimTransferItem> = [
   { dataIndex: "phoneNumber", title: "Số điện thoại", width: 140 },
+  { dataIndex: "internalImsi", title: "IMSI nội bộ", width: 120 },
   {
     dataIndex: "ratingPlan",
     title: "Gói cước",
@@ -43,17 +46,20 @@ const simColumns: TableColumnsType<SimTransferItem> = [
 
 const filterOption = (input: string, item: SimTransferItem) =>
   item.phoneNumber.toLowerCase().includes(input.toLowerCase()) ||
+  !!item.internalImsi?.includes(input.trim()) ||
   item.ratingPlan.toLowerCase().includes(input.toLowerCase());
 
 const TableTransfer: React.FC<TableTransferProps> = ({
   dataSource,
   targetKeys,
   loading = false,
+  disabled = false,
   onChange,
 }) => (
   <Transfer<SimTransferItem>
     dataSource={dataSource}
     targetKeys={targetKeys}
+    disabled={disabled}
     onChange={(tKeys, dir, moveKeys) =>
       onChange(tKeys as string[], dir, moveKeys as string[])
     }
@@ -65,11 +71,10 @@ const TableTransfer: React.FC<TableTransferProps> = ({
     locale={{
       itemUnit: "sim",
       itemsUnit: "sim",
-      searchPlaceholder: "Tìm theo số điện thoại hoặc gói cước",
+      searchPlaceholder: "Tìm SĐT, IMSI nội bộ hoặc gói cước",
     }}
   >
     {({
-      direction,
       filteredItems,
       onItemSelect,
       onItemSelectAll,
@@ -123,7 +128,7 @@ const TableTransfer: React.FC<TableTransferProps> = ({
           dataSource={filteredItems}
           rowKey="key"
           size="small"
-          loading={direction === "left" ? loading : false}
+          loading={loading}
           style={{ pointerEvents: listDisabled ? "none" : undefined }}
           pagination={{ pageSize: 10, size: "small", showSizeChanger: false }}
           onRow={({ key, disabled: itemDisabled }) => ({
